@@ -26,7 +26,7 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 		error("binding error");	
 	listen(sockfd, 5);
 	int clilen = sizeof(cli_addr);
-	int newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
+	int newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, clilen);
 	if (newsockfd<0)
 		error("accept error");
 	bzero(buffer,256);
@@ -38,29 +38,29 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 }
 
 void client(int sockfd,char* hostnm,int port,int is_udp){
-    struct sockaddr_in serv_addr;
-    struct hostent *server;
-    char buffer[256];
-    server = gethostbyname(hostnm);
-    if (server == NULL)
+	struct sockaddr_in serv_addr;
+	struct hostent *server;
+	char buffer[256];
+	server = gethostbyname(hostnm);
+	if (server == NULL)
 	error("No such host");
-    bzero((char *) &serv_addr, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    bcopy((char *)server->h_addr,(char *)&serv_addr.sin_addr.s_addr,server->h_length);
-    serv_addr.sin_port = htons(port);
-    if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
-        error("ERROR connecting");
-    printf("Please enter the message: ");
-    bzero(buffer,256);
-    fgets(buffer,255,stdin);
-    int n = write(sockfd,buffer,strlen(buffer));
-    if (n < 0) 
-         error("ERROR writing to socket");
-    bzero(buffer,256);
-    n = read(sockfd,buffer,255);
-    if (n < 0) 
-         error("ERROR reading from socket");
-    printf("%s\n",buffer);
+	bzero((char *) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	bcopy((char *)server->h_addr,(char *)&serv_addr.sin_addr.s_addr,server->h_length);
+	serv_addr.sin_port = htons(port);
+	if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
+		error("ERROR connecting");
+	printf("Please enter the message: ");
+	bzero(buffer,256);
+	fgets(buffer,255,stdin);
+	int n = write(sockfd,buffer,strlen(buffer));
+	if (n < 0) 
+		 error("ERROR writing to socket");
+	bzero(buffer,256);
+	n = read(sockfd,buffer,255);
+	if (n < 0) 
+		 error("ERROR reading from socket");
+	printf("%s\n",buffer);
 }
 
 int main(int argc, char*argv[]){
