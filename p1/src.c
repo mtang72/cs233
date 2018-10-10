@@ -29,13 +29,14 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	int newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
 	if (newsockfd<0)
 		error("accept error");
+	printf("Connection established\n");
 	while(1){
-	bzero(buffer,256);
-     	int n = read(newsockfd,buffer,255);
-     	if (n < 0) error("ERROR reading from socket");
-     	printf("Here is the message: %s\n",buffer);
-	n = write(newsockfd,"I got your message",18);
-     	if (n < 0) error("ERROR writing to socket");
+		bzero(buffer,256);
+     		int n = read(newsockfd,buffer,255);
+     		if (n < 0) error("ERROR reading from socket");
+     		printf("Here is the message: %s\n",buffer);
+		n = write(newsockfd,"Message received",18);
+     		if (n < 0) error("ERROR writing to socket");
 	}
 }
 
@@ -52,8 +53,8 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 	serv_addr.sin_port = htons(port);
 	if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
 		error("ERROR connecting");
-	printf("Please enter the message: ");
 	while(1){
+		printf("Enter message: ");
 		bzero(buffer,256);
 		fgets(buffer,255,stdin);
 		int n = write(sockfd,buffer,strlen(buffer));
