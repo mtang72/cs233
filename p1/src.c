@@ -26,7 +26,7 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 		error("binding error");	
 	listen(sockfd, 5);
 	int clilen = sizeof(cli_addr);
-	int newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, clilen);
+	int newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
 	if (newsockfd<0)
 		error("accept error");
 	bzero(buffer,256);
