@@ -3,9 +3,20 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
 /* Server and client side code: get from RPI
    different implementations for TCP and UDP */
+
+void server(sockfd,hostnm,port,is_udp){
+	char buffer[256];
+	struct sockaddr_in serv_addr, cli_addr;
+	bzero((char*) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(port);
+	
+}
 
 int main(int argc, char*argv[]){
 	int is_serv = 0; //0 if client 1 if server	
@@ -29,9 +40,17 @@ int main(int argc, char*argv[]){
 		fprintf(stderr,"usage: snc [-l] [-u] [hostname] port\n");
 		exit(1)
 	}
-	if is_serv
-		server(hostnm,port,is_udp);
+	//opening socket
+	if (is_udp)
+		sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	else
-		client(hostnm,port,is_udp);
+		sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    	if (sockfd < 0) 
+        	error("ERROR opening socket");	
+	
+	if is_serv
+		server(sockfd,hostnm,port,is_udp);
+	else
+		client(sockfd,hostnm,port,is_udp);
 	return 0;
 }
