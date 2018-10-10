@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <string.h>
 #include <stdlib.h>
@@ -9,13 +10,57 @@
 /* Server and client side code: get from RPI
    different implementations for TCP and UDP */
 
-void server(sockfd,hostnm,port,is_udp){
+void error(char *str){
+	fprintf(stderr, "%s\n", str);
+	exit(1);
+}
+
+void server(int sockfd,char* hostnm,int port,int is_udp){
 	char buffer[256];
 	struct sockaddr_in serv_addr, cli_addr;
 	bzero((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(port);
-	
+	serv_addr.sin_addr.s_addr = INADDR_ANY;
+	if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
+		error("binding error");	
+	listen(sockfd, 5);
+	int clilen = sizeof(cli_addr);
+	int newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
+	if (newsockfd<0)
+		error("accept error");
+	bzero(buffer,256);
+     	int n = read(newsockfd,buffer,255);
+     	if (n < 0) error("ERROR reading from socket");
+     	printf("Here is the message: %s\n",buffer);
+	n = write(newsockfd,"I got your message",18);
+     	if (n < 0) error("ERROR writing to socket");
+}
+
+void client(int sockfd,char* hostnm,int port,int is_udp){
+    struct sockaddr_in serv_addr;
+    struct hostent *server;
+    char buffer[256];
+    server = gethostbyname(hostnm);
+    if (server == NULL)
+	error("No such host");
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr,(char *)&serv_addr.sin_addr.s_addr,server->h_length);
+    serv_addr.sin_port = htons(port);
+    if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
+        error("ERROR connecting");
+    printf("Please enter the message: ");
+    bzero(buffer,256);
+    fgets(buffer,255,stdin);
+    int n = write(sockfd,buffer,strlen(buffer));
+    if (n < 0) 
+         error("ERROR writing to socket");
+    bzero(buffer,256);
+    n = read(sockfd,buffer,255);
+    if (n < 0) 
+         error("ERROR reading from socket");
+    printf("%s\n",buffer);
 }
 
 int main(int argc, char*argv[]){
@@ -35,12 +80,10 @@ int main(int argc, char*argv[]){
 				port = atoi(argv[i]);
 		}
 	}
-	if (argc<2 || (!is_serv&&!strcmp(hostnm,"none")) || port==0){
-		fprintf(stderr,"invalid or missing options\n");
-		fprintf(stderr,"usage: snc [-l] [-u] [hostname] port\n");
-		exit(1)
-	}
+	if (argc<2 || (!is_serv&&!strcmp(hostnm,"none")) || port==0)
+		error("invalid or missing options\nusage: snc [-l] [-u] [hostname] port");
 	//opening socket
+	int sockfd;
 	if (is_udp)
 		sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	else
@@ -48,7 +91,7 @@ int main(int argc, char*argv[]){
     	if (sockfd < 0) 
         	error("ERROR opening socket");	
 	
-	if is_serv
+	if (is_serv)
 		server(sockfd,hostnm,port,is_udp);
 	else
 		client(sockfd,hostnm,port,is_udp);
