@@ -34,7 +34,7 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 		bzero(buffer,256);
      		int n = read(newsockfd,buffer,255);
      		if (n < 0) error("ERROR reading from socket");
-     		printf("Here is the message: %s\n",buffer);
+     		printf("User says: %s\n",buffer);
 		n = write(newsockfd,"Message received",18);
      		if (n < 0) error("ERROR writing to socket");
 	}
@@ -56,7 +56,11 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 	while(1){
 		printf("Enter message: ");
 		bzero(buffer,256);
-		fgets(buffer,255,stdin);
+		if (fgets(buffer,255,stdin) == NULL){
+			if (close(sockfd)<0)
+				error("ERROR closing socket");
+			return;
+		}
 		int n = write(sockfd,buffer,strlen(buffer));
 		if (n < 0) 
 			error("ERROR writing to socket");
