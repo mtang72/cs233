@@ -6,16 +6,18 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 
-/* Server and client side code: get from RPI
-   different implementations for TCP and UDP */
-
+/*TODO: Makefile
+	Make server listen to/receive from only specific address
+*/
 void error(char *str){
 	fprintf(stderr, "%s\n", str);
 	exit(1);
 }
 
 void server(int sockfd,char* hostnm,int port,int is_udp){
+	//creating buffer and sockaddrs
 	char buffer[256];
 	struct sockaddr_in serv_addr, cli_addr;
 	bzero((char*) &serv_addr, sizeof(serv_addr));
@@ -23,15 +25,17 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	serv_addr.sin_port = htons(port);
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
 	if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
-		error("binding error");	
+		error("binding error");
+	//listening and connecting to client if TCP	
 	listen(sockfd, 5);
 	socklen_t clilen = sizeof(cli_addr);
-	int newsockfd, n;
+	int n, newsockfd;
 	if (!is_udp){
 		newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
 		if (newsockfd<0)
 			error("accept error");
 	}
+	//receiving messages
 	while(1){
 		bzero(buffer,256);
      		if (is_udp)
@@ -46,31 +50,31 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 }
 
 void client(int sockfd,char* hostnm,int port,int is_udp){
+	//creating buffer,sockaddr, hostent
 	struct sockaddr_in serv_addr;
 	struct hostent *server;
 	char buffer[256];
 	server = gethostbyname(hostnm);
 	if (server == NULL)
-	error("No such host");
+		error("No such host");
 	bzero((char *) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	bcopy((char *)server->h_addr,(char *)&serv_addr.sin_addr.s_addr,server->h_length);
 	serv_addr.sin_port = htons(port);
+	//attempting to connect to server
 	if (!is_udp){
 		if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
 			error("ERROR connecting");
 	}
 	int n, can_send = 1;
+	//messaging
 	while(1){
 		bzero(buffer,256);
+		//ctrl-d handling
 		if (fgets(buffer,255,stdin) == NULL){
 			if (is_udp)
 				can_send = 0;
-			else{
-				if (close(sockfd)<0)
-					error("ERROR closing socket");
-				return;
-			}
+			else return;
 		}
 		if (is_udp && can_send)
 			n = sendto(sockfd, buffer, strlen(buffer), 0,
@@ -119,5 +123,7 @@ int main(int argc, char*argv[]){
 		server(sockfd,hostnm,port,is_udp);
 	else
 		client(sockfd,hostnm,port,is_udp);
+	if (close(sockfd)<0)
+		error("ERROR closing socket");
 	return 0;
 }
