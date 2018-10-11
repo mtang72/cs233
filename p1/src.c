@@ -60,8 +60,8 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 		if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
 			error("ERROR connecting");
 	}
+	int n, can_send = 1;
 	while(1){
-		int can_send = 1;
 		bzero(buffer,256);
 		if (fgets(buffer,255,stdin) == NULL){
 			if (is_udp)
@@ -72,7 +72,6 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 				return;
 			}
 		}
-		int n;
 		if (is_udp && can_send)
 			n = sendto(sockfd, buffer, strlen(buffer), 0,
 			(const struct sockaddr*) &serv_addr, sizeof(serv_addr));
