@@ -26,7 +26,7 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 		error("binding error");	
 	listen(sockfd, 5);
 	socklen_t clilen = sizeof(cli_addr);
-	int newsockfd;
+	int newsockfd, n;
 	if (!is_udp){
 		newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
 		if (newsockfd<0)
@@ -34,13 +34,13 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	}
 	while(1){
 		bzero(buffer,256);
-		int n;
      		if (is_udp)
 			n = recvfrom(sockfd, buffer, 256,
 			MSG_WAITALL, (struct sockaddr*) &cli_addr, &clilen);
 		else{
 			n = read(newsockfd,buffer,255);
-     			if (n<0) return;
+			printf("%d\n", n);
+     			if (n==0) return;
 		}
      		printf("%s",buffer);
 	}
