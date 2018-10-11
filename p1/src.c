@@ -39,7 +39,6 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 			MSG_WAITALL, (struct sockaddr*) &cli_addr, &clilen);
 		else{
 			n = read(newsockfd,buffer,255);
-			printf("%d\n", n);
      			if (n==0) return;
 		}
      		printf("%s",buffer);
@@ -62,18 +61,22 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 			error("ERROR connecting");
 	}
 	while(1){
-		printf("Enter message: ");
+		int can_send = 1;
 		bzero(buffer,256);
 		if (fgets(buffer,255,stdin) == NULL){
-			if (close(sockfd)<0)
-				error("ERROR closing socket");
-			return;
+			if (is_udp)
+				can_send = 0;
+			else{
+				if (close(sockfd)<0)
+					error("ERROR closing socket");
+				return;
+			}
 		}
 		int n;
-		if (is_udp)
+		if (is_udp && can_send)
 			n = sendto(sockfd, buffer, strlen(buffer), 0,
 			(const struct sockaddr*) &serv_addr, sizeof(serv_addr));
-		else{
+		else if (!is_udp){
 			n = write(sockfd,buffer,strlen(buffer));
 			if (n < 0) return; 
 		}
