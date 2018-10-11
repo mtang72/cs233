@@ -33,10 +33,10 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	while(1){
 		bzero(buffer,256);
      		int n = read(newsockfd,buffer,255);
-     		if (n < 0) error("ERROR reading from socket");
-     		printf("User says: %s\n",buffer);
+     		if (n < 0) return;
+     		printf("%s",buffer);
 		n = write(newsockfd,"Message received",18);
-     		if (n < 0) error("ERROR writing to socket");
+     		if (n < 0) return;
 	}
 }
 
