@@ -25,18 +25,24 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
 		error("binding error");	
 	listen(sockfd, 5);
-	int clilen = sizeof(cli_addr);
-	int newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
-	if (newsockfd<0)
-		error("accept error");
-	printf("Connection established\n");
+	socklen_t clilen = sizeof(cli_addr);
+	int newsockfd;
+	if (!is_udp){
+		newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
+		if (newsockfd<0)
+			error("accept error");
+	}
 	while(1){
 		bzero(buffer,256);
-     		int n = read(newsockfd,buffer,255);
-     		if (n < 0) return;
+		int n;
+     		if (is_udp)
+			n = recvfrom(sockfd, buffer, 256,
+			MSG_WAITALL, (struct sockaddr*) &cli_addr, &clilen);
+		else{
+			n = read(newsockfd,buffer,255);
+     			if (n<0) return;
+		}
      		printf("%s",buffer);
-		n = write(newsockfd,"Message received",18);
-     		if (n < 0) return;
 	}
 }
 
@@ -51,8 +57,10 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 	serv_addr.sin_family = AF_INET;
 	bcopy((char *)server->h_addr,(char *)&serv_addr.sin_addr.s_addr,server->h_length);
 	serv_addr.sin_port = htons(port);
-	if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
-		error("ERROR connecting");
+	if (!is_udp){
+		if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) 
+			error("ERROR connecting");
+	}
 	while(1){
 		printf("Enter message: ");
 		bzero(buffer,256);
@@ -61,14 +69,19 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 				error("ERROR closing socket");
 			return;
 		}
-		int n = write(sockfd,buffer,strlen(buffer));
-		if (n < 0) 
-			error("ERROR writing to socket");
-		bzero(buffer,256);
+		int n;
+		if (is_udp)
+			n = sendto(sockfd, buffer, strlen(buffer), 0,
+			(const struct sockaddr*) &serv_addr, sizeof(serv_addr));
+		else{
+			n = write(sockfd,buffer,strlen(buffer));
+			if (n < 0) return; 
+		}
+		/*bzero(buffer,256);
 		n = read(sockfd,buffer,255);
 		if (n < 0) 
 			error("ERROR reading from socket");
-		printf("%s\n",buffer);
+		printf("%s\n",buffer);*/
 	}
 }
 
