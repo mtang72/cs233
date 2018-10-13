@@ -23,22 +23,22 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	bzero((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(port);
-	serv_addr.sin_addr.s_addr = INADDR_ANY;
+	if (strcmp(hostnm,"none")==0)
+		serv_addr.sin_addr.s_addr = INADDR_ANY;
+	else{
+		if (inet_pton(AF_INET,hostnm,&serv_addr.sin_addr.s_addr)==0)
+			error("ERROR invalid address");
+	}
 	if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
 		error("binding error");
 	//listening and connecting to client if TCP	
 	listen(sockfd, 5);
 	socklen_t clilen = sizeof(cli_addr);
 	int n, newsockfd;
-	
 	while (!is_udp){
 		newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
 		if (newsockfd<0)
 			error("accept error");
-		char clihost[clilen];
-		inet_ntop(AF_INET, &cli_addr.sin_addr.s_addr, clihost, clilen);
-		if (strcmp(hostnm,"none")==0 || strcmp(hostnm,clihost)==0) break;
-		//listening only for specified client
 	}
 	//receiving messages
 	while(1){
@@ -46,15 +46,11 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
      		if (is_udp)
 			n = recvfrom(sockfd, buffer, 256,
 			MSG_WAITALL, (struct sockaddr*) &cli_addr, &clilen);
-			char clihost[clilen];
-			inet_ntop(AF_INET, &cli_addr.sin_addr.s_addr,clihost,clilen);
-			if (strcmp(hostnm,"none")==0 || strcmp(hostnm,clihost)==0)
-				printf("%s",buffer); //specified client only, for UDP
 		else{
 			n = read(newsockfd,buffer,255);
      			if (n==0) return;
-     			printf("%s",buffer);
 		}
+     		printf("%s",buffer);
 	}
 }
 
