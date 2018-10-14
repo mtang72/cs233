@@ -27,10 +27,10 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 	else{
 		if (inet_pton(AF_INET,hostnm,&serv_addr.sin_addr.s_addr)==0)
-			error("internal error");
+			error("set error");
 	}
 	if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
-		error("internal error");
+		error("bind error");
 	//listening and connecting to client if TCP	
 	listen(sockfd, 5);
 	socklen_t clilen = sizeof(cli_addr);
