@@ -16,6 +16,7 @@ void error(char *str){
 void server(int sockfd,char* hostnm,int port,int is_udp){
 	//creating buffer and sockaddrs
 	char buffer[256];
+	struct hostent *spechost;
 	struct sockaddr_in serv_addr, cli_addr;
 	bzero((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
@@ -23,8 +24,11 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	if (strcmp(hostnm,"none")==0)
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 	else{
-		if (inet_pton(AF_INET,hostnm,&serv_addr.sin_addr.s_addr)==0)
-			error("internal error");
+		spechost = gethostbyname(hostnm);
+		if (spechost == NULL)
+			error("invalid or missing options\nusage: snc [-l] [-u] [hostname] port");
+		bzero((char *) &serv_addr, sizeof(serv_addr));
+		bcopy((char *)spechost->h_addr,(char *)&serv_addr.sin_addr.s_addr,spechost->h_length);
 	}
 	if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
 		error("invalid or missing options\nusage: snc [-l] [-u] [hostname] port");
