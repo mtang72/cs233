@@ -1,0 +1,21 @@
+Michael Tang, mtang72
+
+All source code is found in src.c.
+The functions in src.c are:
+	void error(char *str)
+		For error handling. The only errors outputted are "invalid or missing options\nusage: snc [-l] [-u] [hostname] port" for invalid argument input or invalid ports and hostnames, and "internal error" for all other errors.
+	
+	void server(int sockfd, char* hostnm, int port, int is_udp)
+		For server. If hostnm is not "none", then server will bind port to specified address. Server listens for incoming datagram packets when is_udp is 1, else it listens for incoming connections. Server outputs what the client gives it, and closes when client hits CTRL-D on TCP.
+
+	void client(int sockfd, char* hostnm, int port, int is_udp)
+		For client. Client sends out datagram packets if in UDP mode else it attempts to establish a connection. When CTRL-D is hit, client exits when in TCP mode or stops sending packets when in UDP mode.
+
+	void main(int argc, char*argv[])
+		Input processing and validation, as well as creation of sockets, calling of server() or client() depending on is_serv argument, and closes socket upon return.
+
+Usage:
+	In program directory: ./snc [-l] [-u] [hostname] port
+	-l for server mode, -u for UDP mode. hostname is required if -l is not an option. port is always required and can only be between ports 1035 and 65535.
+	
+	Compile the program by running make. To delete the execution binary run make clean.

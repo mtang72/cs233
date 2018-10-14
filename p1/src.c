@@ -8,9 +8,6 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-/*TODO: Makefile
-	Make server listen to/receive from only specific address
-*/
 void error(char *str){
 	fprintf(stderr, "%s\n", str);
 	exit(1);
@@ -88,11 +85,6 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 			n = write(sockfd,buffer,strlen(buffer));
 			if (n < 0) return; 
 		}
-		/*bzero(buffer,256);
-		n = read(sockfd,buffer,255);
-		if (n < 0) 
-			error("internal error");
-		printf("%s\n",buffer);*/
 	}
 }
 
