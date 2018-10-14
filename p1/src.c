@@ -35,7 +35,7 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	listen(sockfd, 5);
 	socklen_t clilen = sizeof(cli_addr);
 	int n, newsockfd;
-	while (!is_udp){
+	if (!is_udp){
 		newsockfd = accept(sockfd,(struct sockaddr*)&cli_addr, &clilen);
 		if (newsockfd<0)
 			error("accept error");
