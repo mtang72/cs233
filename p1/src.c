@@ -24,10 +24,10 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 	else{
 		if (inet_pton(AF_INET,hostnm,&serv_addr.sin_addr.s_addr)==0)
-			error("set error");
+			error("internal error");
 	}
 	if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
-		error("bind error");
+		error("invalid or missing options\nusage: snc [-l] [-u] [hostname] port");
 	//listening and connecting to client if TCP	
 	listen(sockfd, 5);
 	socklen_t clilen = sizeof(cli_addr);
