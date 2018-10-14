@@ -27,7 +27,6 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 		spechost = gethostbyname(hostnm);
 		if (spechost == NULL)
 			error("invalid or missing options\nusage: snc [-l] [-u] [hostname] port");
-		bzero((char *) &serv_addr, sizeof(serv_addr));
 		bcopy((char *)spechost->h_addr,(char *)&serv_addr.sin_addr.s_addr,spechost->h_length);
 	}
 	if (bind(sockfd,(struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
