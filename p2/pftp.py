@@ -9,30 +9,36 @@ def ftp_nonpar(file,hostnm,user,pwd,port,out):
 	soc1 = socket.socket()
 	soc2 = socket.socket()
 	soc1.connect((hostnm,port))
+	filesize = 0
 	while True:
 		rec = soc1.recv(256)
 		if not rec:
 			break
 		msg = rec.decode().strip()
 		code,snd = msg[0:3], "" #to get the message code
+		if code=="500": #incorrect command
+			raise Exception("5: Command Invalid in Server")
 		if code=="220": #username ask
 			snd = "USER "+user
 		if code=="331": #password ask
 			snd = "PASS "+pwd
 		if code=="430" or code=="530": #invalid username/pass
-			raise ValueError("invalid username/password")
+			raise Exception("2: Authentication Failure")
 		if code=="550": #invalid filename
-			raise ValueError("invalid filename")
+			raise Exception("3: File Not Found")
 		if code=="421": #timeout
-			raise ConnectionError()
+			raise Exception("1: Connection Failure")
 		if code=="150": #file sending
 			with open(file, "wb") as f:
-				while True:
-					chunk = soc2.recv(2048)
+				pos = 0
+				while pos<filesize:
+					chunk = soc2.recv(min(filesize-pos,4096))
+					pos += len(chunk)
+					#print("pos: {}  last packet size: {}".format(pos,len(chunk)))
 					if not chunk:
 						break
 					f.write(chunk)
-			print("File transfer successful.")
+		if code=="226": #transfer complete
 			snd = "QUIT"
 		if code=="230" or code=="425": #login successful/select PASV
 			snd = "PASV"
@@ -40,6 +46,9 @@ def ftp_nonpar(file,hostnm,user,pwd,port,out):
 			hostaddr = ".".join(re.search(r"\(\d{1,3},\d{1,3},\d{1,3},\d{1,3}",msg).group()[1:].split(","))
 			p1, p2 = map(int,re.search(r"\d{0,5},\d{0,5}\)",msg).group()[:-1].split(","))
 			soc2.connect((hostaddr, p1*256+p2))
+			snd = "SIZE "+file
+		if code=="213": #size of file received
+			filesize = int(msg.split()[1])
 			snd = "RETR "+file
 		data = (snd+"\n").encode()
 		if out:
@@ -47,10 +56,9 @@ def ftp_nonpar(file,hostnm,user,pwd,port,out):
 		soc1.sendall(data)
 	soc1.close()
 	soc2.close()
-	return "Connection closed."
+	return 0
 
-
-if __name__ == "__main__":
+def main():
 	parser = argparse.ArgumentParser(prog="pftp")
 	parser.add_argument("-s",required=True,metavar="hostname",dest="hostname")
 	parser.add_argument("-f",required=True,metavar="file",dest="file")
@@ -69,6 +77,10 @@ if __name__ == "__main__":
 	pwd = args['password']
 	port = args['port']
 	user = args['username']
-	print(ftp_nonpar(file,hostnm,user,pwd,port,log))
+	ex = ftp_nonpar(file,hostnm,user,pwd,port,log)
 	if log and log!=sys.stdout:
 		log.close()
+	return ex
+
+if __name__ == "__main__":
+	main()
