@@ -32,6 +32,7 @@ def ftp_nonpar(file,hostnm,user,pwd,port,out):
 					if not chunk:
 						break
 					f.write(chunk)
+			print("File transfer successful.")
 			snd = "QUIT"
 		if code=="230" or code=="425": #login successful/select PASV
 			snd = "PASV"
@@ -46,7 +47,7 @@ def ftp_nonpar(file,hostnm,user,pwd,port,out):
 		soc1.sendall(data)
 	soc1.close()
 	soc2.close()
-	return "File transfer successful."
+	return "Connection closed."
 
 
 if __name__ == "__main__":
@@ -61,10 +62,13 @@ if __name__ == "__main__":
 	args = vars(parser.parse_args())
 	file = args['file']
 	hostnm = args['hostname']
-	log = open(args['log'],'w') if args['log']!='-' else (sys.stdout if args['log']=='-' else None)
+	if args['log']:
+		log = open(args['log'],'w') if args['log']!='-' else sys.stdout
+	else:
+		log = None
 	pwd = args['password']
 	port = args['port']
 	user = args['username']
 	print(ftp_nonpar(file,hostnm,user,pwd,port,log))
-	if log!=sys.stdout:
+	if log and log!=sys.stdout:
 		log.close()
