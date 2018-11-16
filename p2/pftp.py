@@ -66,7 +66,8 @@ def main():
 	parser.add_argument("-p","--port",type=int,metavar="port",default=21)
 	parser.add_argument("-n","--username",metavar="user",default="anonymous")
 	parser.add_argument("-P","--password",metavar="password",default="user@localhost.localnet")
-	parser.add_argument("-l","--log",metavar="logfile",default=None)
+	parser.add_argument("-l","--log",metavar="logfile")
+	parser.add_argument("-t","--thread",metavar="cfg_file",dest="cfg")
 	args = vars(parser.parse_args())
 	file = args['file']
 	hostnm = args['hostname']
@@ -77,6 +78,17 @@ def main():
 	pwd = args['password']
 	port = args['port']
 	user = args['username']
+	if args['cfg']: #read config file, override parameters and enter multithread mode
+		with open(args['cfg'],'r') as f:
+			cmds = f.read().split('\n')
+			parts = len(cmds)
+			partsize = size/parts
+			for i in range(parts):
+				pos = partsize*i
+				user, pwd = re.search(r"(?<=^ftp://).*:.*(?=@)",cmds[i]).group().split(":")
+				hostnm = re.search(r"(?<=@).*(?=/)",cmds[i]).group()
+				file = re.search(r"(?<=@.*)/.*$",cmds[i]).group()
+				#TODO: threading and testing regex
 	ex = ftp_nonpar(file,hostnm,user,pwd,port,log)
 	if log and log!=sys.stdout:
 		log.close()
