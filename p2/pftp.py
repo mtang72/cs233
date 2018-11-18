@@ -1,9 +1,7 @@
 #i'm sorry to all the fans but i would seriously rather use sublime text than vim
-import argparse,sys,socket,re
-class ConnectionError(Exception):
-	pass
+import argparse,sys,socket,re,threading,os
 
-def ftp_nonpar(file,hostnm,user,pwd,port,out):
+def ftp(file,hostnm,user,pwd,port,out,inter=None,posn=None): #inter,pos should be (#intervals, position) when it exists
 	addr = socket.gethostbyname(hostnm)
 	#soc.bind(('',port))
 	soc1 = socket.socket()
@@ -29,6 +27,9 @@ def ftp_nonpar(file,hostnm,user,pwd,port,out):
 		if code=="421": #timeout
 			raise Exception("1: Connection Failure")
 		if code=="150": #file sending
+			if inter:
+				file += "-"+str(posn)
+				filesize /= inter
 			with open(file, "wb") as f:
 				pos = 0
 				while pos<filesize:
@@ -49,6 +50,11 @@ def ftp_nonpar(file,hostnm,user,pwd,port,out):
 			snd = "SIZE "+file
 		if code=="213": #size of file received
 			filesize = int(msg.split()[1])
+			snd = "TYPE I"
+		if code=="200": #binary switch successful
+			pos = (filesize/inter)*posn if inter else 0
+			snd = "REST {}".format(pos)
+		if code=="350": #restart position accepted
 			snd = "RETR "+file
 		data = (snd+"\n").encode()
 		if out:
@@ -56,9 +62,33 @@ def ftp_nonpar(file,hostnm,user,pwd,port,out):
 		soc1.sendall(data)
 	soc1.close()
 	soc2.close()
-	return 0
+	return "0: Transfer complete"
 
-def main():
+def threadft(cmds, port, log): #multithread downloading
+	threads = []
+	for i in range(len(cmds)):
+		print(cmds[i])
+		user, pwd = re.search(r"(?<=^ftp://).*:.*(?=@)",cmds[i]).group().split(":")
+		hostnm = re.search(r"(?<=@).*(?=/)",cmds[i]).group()
+		file = re.search(r"(?<!ftp:/)/.*$",cmds[i]).group()
+		threads.append(threading.Thread(target=ftp, args=(file,hostnm,user,pwd,port,log),kwargs={'inter':len(cmds),'posn':i}))
+	for thread in threads:
+		thread.start()
+	for thread in threads:
+		thread.join()
+	with open(file+"-0","ab") as f:
+		for i in range(1,len(cmds)):
+			with open(file+"-"+str(i),"r") as f1:
+				f.write(f1.read())
+			os.remove(file+"-"+str(i))
+		try:
+			os.remove(file)
+		except FileNotFoundError:
+			pass
+		os.rename(file+"-0",file)
+	return "0: Transfer complete"
+
+if __name__ == "__main__":
 	parser = argparse.ArgumentParser(prog="pftp")
 	parser.add_argument("-s",required=True,metavar="hostname",dest="hostname")
 	parser.add_argument("-f",required=True,metavar="file",dest="file")
@@ -81,18 +111,8 @@ def main():
 	if args['cfg']: #read config file, override parameters and enter multithread mode
 		with open(args['cfg'],'r') as f:
 			cmds = f.read().split('\n')
-			parts = len(cmds)
-			partsize = size/parts
-			for i in range(parts):
-				pos = partsize*i
-				user, pwd = re.search(r"(?<=^ftp://).*:.*(?=@)",cmds[i]).group().split(":")
-				hostnm = re.search(r"(?<=@).*(?=/)",cmds[i]).group()
-				file = re.search(r"(?<=@.*)/.*$",cmds[i]).group()
-				#TODO: threading and testing regex
-	ex = ftp_nonpar(file,hostnm,user,pwd,port,log)
+			print(threadft(cmds, port, log))
+	else:
+		print(ftp(file,hostnm,user,pwd,port,log))
 	if log and log!=sys.stdout:
 		log.close()
-	return ex
-
-if __name__ == "__main__":
-	main()
