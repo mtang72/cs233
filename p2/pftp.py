@@ -13,6 +13,8 @@ def ftp(file,hostnm,user,pwd,port,out,inter=None,posn=None): #inter,pos should b
 		if not rec:
 			break
 		msg = rec.decode().strip()
+		if out:
+			print(("T{}: ".format(posn) if posn!=None else "")+"S->C: ",msg, file=out)
 		code,snd = msg[0:3], "" #to get the message code
 		if code=="500": #incorrect command
 			raise Exception("5: Command Invalid in Server")
@@ -28,14 +30,19 @@ def ftp(file,hostnm,user,pwd,port,out,inter=None,posn=None): #inter,pos should b
 			raise Exception("1: Connection Failure")
 		if code=="150": #file sending
 			if inter:
-				file += "-"+str(posn)
-				filesize /= inter
+				file = str(posn)+"-"+file
+				filesize //= inter
 			with open(file, "wb") as f:
 				pos = 0
 				while pos<filesize:
 					chunk = soc2.recv(min(filesize-pos,4096))
 					pos += len(chunk)
 					#print("pos: {}  last packet size: {}".format(pos,len(chunk)))
+					if not chunk:
+						break
+					f.write(chunk)
+				while (posn!=None and inter!=None) and posn==inter-1: #reading leftover bytes
+					chunk = soc2.recv(1024)
 					if not chunk:
 						break
 					f.write(chunk)
@@ -52,13 +59,13 @@ def ftp(file,hostnm,user,pwd,port,out,inter=None,posn=None): #inter,pos should b
 			filesize = int(msg.split()[1])
 			snd = "TYPE I"
 		if code=="200": #binary switch successful
-			pos = (filesize/inter)*posn if inter else 0
+			pos = (filesize//inter)*posn if inter else 0
 			snd = "REST {}".format(pos)
 		if code=="350": #restart position accepted
 			snd = "RETR "+file
 		data = (snd+"\n").encode()
 		if out:
-			print("S->C: {}\nC->S: {}".format(msg,snd), file=out)
+			print(("T{}: ".format(posn) if posn!=None else "")+"C->S: ",snd, file=out)
 		soc1.sendall(data)
 	soc1.close()
 	soc2.close()
@@ -67,25 +74,24 @@ def ftp(file,hostnm,user,pwd,port,out,inter=None,posn=None): #inter,pos should b
 def threadft(cmds, port, log): #multithread downloading
 	threads = []
 	for i in range(len(cmds)):
-		print(cmds[i])
-		user, pwd = re.search(r"(?<=^ftp://).*:.*(?=@)",cmds[i]).group().split(":")
+		user, pwd = re.search(r"(?<=ftp://).*:.*(?=@)",cmds[i]).group().split(":")
 		hostnm = re.search(r"(?<=@).*(?=/)",cmds[i]).group()
-		file = re.search(r"(?<!ftp:/)/.*$",cmds[i]).group()
+		file = re.search(r"/.*$",cmds[i][6:]).group()[1:]
 		threads.append(threading.Thread(target=ftp, args=(file,hostnm,user,pwd,port,log),kwargs={'inter':len(cmds),'posn':i}))
 	for thread in threads:
 		thread.start()
 	for thread in threads:
 		thread.join()
-	with open(file+"-0","ab") as f:
+	with open("0-"+file,"ab") as f:
 		for i in range(1,len(cmds)):
-			with open(file+"-"+str(i),"r") as f1:
+			with open(str(i)+"-"+file,"rb") as f1:
 				f.write(f1.read())
-			os.remove(file+"-"+str(i))
+			os.remove(str(i)+"-"+file)
 		try:
 			os.remove(file)
 		except FileNotFoundError:
 			pass
-		os.rename(file+"-0",file)
+		os.rename("0-"+file,file)
 	return "0: Transfer complete"
 
 if __name__ == "__main__":
@@ -110,7 +116,7 @@ if __name__ == "__main__":
 	user = args['username']
 	if args['cfg']: #read config file, override parameters and enter multithread mode
 		with open(args['cfg'],'r') as f:
-			cmds = f.read().split('\n')
+			cmds = f.read().strip().split('\n')
 			print(threadft(cmds, port, log))
 	else:
 		print(ftp(file,hostnm,user,pwd,port,log))
