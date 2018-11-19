@@ -25,8 +25,8 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 	#soc.bind(('',port))
 	soc1 = socket.socket()
 	soc2 = socket.socket()
-	#soc1.settimeout(60)
-	#soc2.settimeout(60)
+	"""soc1.settimeout(60)
+	soc2.settimeout(60)""" #timeout to implement if needed
 	soc1.connect((hostnm,port))
 	filesize = 0
 	while True:
@@ -60,20 +60,20 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 			filesize //= inter if inter else 1
 			pos = 0
 			while pos<filesize:
-				try:
-					chunk = soc2.recv(min(filesize-pos,4096))
-				except socket.timeout:
-					raise Exception("1: Can't connect to server")
+				#try:
+				chunk = soc2.recv(min(filesize-pos,4096))
+				#except socket.timeout:
+					#raise Exception("1: Can't connect to server")
 				pos += len(chunk)
 				#print("pos: {}  last packet size: {}".format(pos,len(chunk)))
 				if not chunk:
 					break
 				file.write(chunk)
 			while (posn!=None and inter!=None) and posn==inter-1: #reading leftover bytes
-				try:
-					chunk = soc2.recv(1024)
-				except socket.timeout:
-					raise Exception("1: Can't connect to server")
+				#try:
+				chunk = soc2.recv(1024)
+				#except socket.timeout:
+					#raise Exception("1: Can't connect to server")
 				if not chunk:
 					break
 				file.write(chunk)
@@ -97,10 +97,10 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 		data = (snd+"\n").encode()
 		if out:
 			print(("T{}: ".format(posn+1) if posn!=None else "")+"C->S: ",snd, file=out)
-		try:
-			soc1.sendall(data)
-		except socket.timeout:
-			raise Exception("1: Can't connect to server")
+		#try:
+		soc1.sendall(data)
+		#except socket.timeout:
+			#raise Exception("1: Can't connect to server")
 	soc1.close()
 	soc2.close()
 	if results!=None:
