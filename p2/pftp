@@ -2,32 +2,12 @@
 #i'm sorry to all the fans but i would seriously rather use sublime text than vim
 import argparse,sys,socket,re,threading,os,tempfile
 
-"""def err(file, log, threads): #handle temp file deletion
-	if threads:
-		for i in range(threads):
-			try:
-				os.remove(str(i)+"-"+file)
-			except TypeError:
-				print(file,log,threads)
-	else:
-		try:
-			os.remove(file)
-		except FileNotFoundError:
-			pass
-	if log and log!=sys.stdout:
-		log.close()
-	raise Exception("7: Generic error")"""
-
-
 def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None): 
 #inter,pos should be (#intervals, position) when it exists
 #results is a list to document the amount of threads that successfully return
 	addr = socket.gethostbyname(hostnm)
-	#soc.bind(('',port))
 	soc1 = socket.socket()
 	soc2 = socket.socket()
-	"""soc1.settimeout(60)
-	soc2.settimeout(60)""" #timeout to implement if needed
 	soc1.connect((hostnm,port))
 	filesize = 0
 	while True:
@@ -61,20 +41,13 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 			filesize //= inter if inter else 1
 			pos = 0
 			while pos<filesize:
-				#try:
 				chunk = soc2.recv(min(filesize-pos,4096))
-				#except socket.timeout:
-					#raise Exception("1: Can't connect to server")
 				pos += len(chunk)
-				#print("pos: {}  last packet size: {}".format(pos,len(chunk)))
 				if not chunk:
 					break
 				file.write(chunk)
 			while (posn!=None and inter!=None) and posn==inter-1: #reading leftover bytes
-				#try:
 				chunk = soc2.recv(1024)
-				#except socket.timeout:
-					#raise Exception("1: Can't connect to server")
 				if not chunk:
 					break
 				file.write(chunk)
@@ -98,10 +71,7 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 		data = (snd+"\n").encode()
 		if out:
 			print(("T{}: ".format(posn+1) if posn!=None else "")+"C->S: ",snd, file=out)
-		#try:
 		soc1.sendall(data)
-		#except socket.timeout:
-			#raise Exception("1: Can't connect to server")
 	soc1.close()
 	soc2.close()
 	if results!=None:
