@@ -2,7 +2,7 @@ pftp v0.1, by Michael Tang (cnet: mtang72)
 
 This is my implementation of Project 2 of CS233: pftp, in Python 3.7. This client handles file downloads from desired servers using FTP over TCP sockets.
 
-To run, enter "python3 pftp.py" in the home directory of pftp.py with the suitable arguments. Arguments are described in the help message, invoked by including no arguments at all or -h/--help.
+To run, enter "./pftp" in the home directory with the suitable arguments. Arguments are described in the help message, invoked by including no arguments at all or -h/--help. If permission is not granted, run chmod 777 pftp, and if it still doesn't work, I have included the python file so you can run python3 pftp.py for the same execution.
 
 There are 7 outputted codes, numbers 1-6 being raised exceptions:
 0: Operation successfully completed, upon successful writing of the file to home directory.
