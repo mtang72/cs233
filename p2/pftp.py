@@ -25,8 +25,8 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 	#soc.bind(('',port))
 	soc1 = socket.socket()
 	soc2 = socket.socket()
-	soc1.settimeout(60)
-	soc2.settimeout(60)
+	#soc1.settimeout(60)
+	#soc2.settimeout(60)
 	soc1.connect((hostnm,port))
 	filesize = 0
 	while True:

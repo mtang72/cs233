@@ -6,7 +6,7 @@ To run, enter "python3 pftp.py" in the home directory of pftp.py with the suitab
 
 There are 7 outputted codes, numbers 1-6 being raised exceptions:
 0: Operation successfully completed, upon successful writing of the file to home directory.
-1: Can't connect to server, upon timeout or loss of connection. The socket has been set at a timeout of 60, meaning that after 60 seconds of getting no response from an attempted socket function this exception will be thrown. This exception will also be thrown if FTP timeout codes are sent.
+1: Can't connect to server, upon timeout or loss of connection. This exception will be thrown if FTP timeout codes are sent.
 2: Authentication failed, for incorrect username and password input.
 3: File not found, for incorrect filepath.
 4: Syntax error in client request, just in case I screwed up my FTP commands.
