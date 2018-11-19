@@ -1,0 +1,16 @@
+pftp v0.1, by Michael Tang (cnet: mtang72)
+
+This is my implementation of Project 2 of CS233: pftp, in Python 3.7. This client handles file downloads from desired servers using FTP over TCP sockets.
+
+To run, enter "python3 pftp.py" in the home directory of pftp.py with the suitable arguments. Arguments are described in the help message, invoked by including no arguments at all or -h/--help.
+
+There are 7 outputted codes, numbers 1-6 being raised exceptions:
+0: Operation successfully completed, upon successful writing of the file to home directory.
+1: Can't connect to server, upon timeout or loss of connection. The socket has been set at a timeout of 60, meaning that after 60 seconds of getting no response from an attempted socket function this exception will be thrown. This exception will also be thrown if FTP timeout codes are sent.
+2: Authentication failed, for incorrect username and password input.
+3: File not found, for incorrect filepath.
+4: Syntax error in client request, just in case I screwed up my FTP commands.
+5: Command not implemented/Operation not allowed. I couldn't find a specific FTP code on the Wikipedia page for forbidden operations, so general failures of a command will be lumped under this.
+6: Thread generic failure. Given when not all threads successfully return. Usually one of the above exceptions will be thrown by the failed thread beforehand.
+
+Until the very last step, all files written are temporary and would be deleted upon error or sudden exit.
