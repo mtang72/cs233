@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #i'm sorry to all the fans but i would seriously rather use sublime text than vim
 import argparse,sys,socket,re,threading,os,tempfile
 
@@ -82,7 +83,7 @@ def threadft(cmds, port, log): #multithread downloading
 	for i in range(len(cmds)):
 		user, pwd = re.search(r"(?<=ftp://).*:.*(?=@)",cmds[i]).group().split(":")
 		hostnm = re.search(r"(?<=@).*(?=/)",cmds[i]).group()
-		filenm = re.search(r"/.*$",cmds[i][6:]).group()[1:]
+		filenm = re.search(r"/.*$",cmds[i][6:]).group()
 		tmpfiles.append(tempfile.TemporaryFile())
 		threads.append(threading.Thread(target=ftp, args=(filenm,tmpfiles[i],hostnm,user,pwd,port,log),\
 			kwargs={'inter':len(cmds),'posn':i,'results':results}))
@@ -92,6 +93,7 @@ def threadft(cmds, port, log): #multithread downloading
 		thread.join()
 	if len(results) != len(threads):
 		raise Exception("6: Thread generic failure")
+	filenm = re.search(r'[^/]*$',filenm).group() #take away directories so local file will be written in root
 	with open(filenm,"wb") as f:
 		for tmpfile in tmpfiles:
 			tmpfile.seek(0)
@@ -117,6 +119,11 @@ if __name__ == "__main__":
 		parser.error("-s, -f required if -t not given")
 	filenm = args['filenm']
 	hostnm = args['hostname']
+	if hostnm and '/' in hostnm: #if directories in hostnm
+		direc = re.search(r'/.*$',hostnm[6:]).group()
+		filenm = direc + ('/' if direc[-1]!='/' else '') + filenm
+		hostnm = re.search(r'(?<=ftp://).*(?=/)',hostnm).group()
+		print(filenm,hostnm)
 	if args['log']:
 		log = open(args['log'],'w') if args['log']!='-' else sys.stdout
 	else:
@@ -132,6 +139,7 @@ if __name__ == "__main__":
 	else:
 		with tempfile.TemporaryFile() as file:
 			if ftp(filenm,file,hostnm,user,pwd,port,log) == 0:
+				filenm = re.search(r'[^/]*$',filenm).group() #take away directories so local file will be written in root
 				with open(filenm,"wb") as f:
 					file.seek(0)
 					f.write(file.read())
