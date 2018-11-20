@@ -8,15 +8,15 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 	addr = socket.gethostbyname(hostnm)
 	soc1 = socket.socket()
 	soc2 = socket.socket()
-	soc1.connect((hostnm,port))
+	try:
+		soc1.connect((hostnm,port))
+	except:
+		raise Exception("1: Can't connect to server")
 	filesize = 0
 	while True:
-		try:
-			rec = soc1.recv(256)
-		except socket.timeout:
-			raise Exception("1: Can't connect to server")
+		rec = soc1.recv(256)
 		if not rec: #just in case
-			break
+			raise Exception("1: Can't connect to server")
 		msg = rec.decode().strip()
 		if out:
 			print(("T{}: ".format(posn+1) if posn!=None else "")+"S->C: ",msg, file=out)
@@ -58,7 +58,10 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 		if code=="227": #PASV successful
 			hostaddr = ".".join(re.search(r"\(\d{1,3},\d{1,3},\d{1,3},\d{1,3}",msg).group()[1:].split(","))
 			p1, p2 = map(int,re.search(r"\d{0,5},\d{0,5}\)",msg).group()[:-1].split(","))
-			soc2.connect((hostaddr, p1*256+p2))
+			try:
+				soc2.connect((hostaddr, p1*256+p2))
+			except:
+				raise Exception("1: Can't connect to server")
 			snd = "SIZE "+filenm
 		if code=="213": #size of file received
 			filesize = int(msg.split()[1])
@@ -71,7 +74,10 @@ def ftp(filenm,file,hostnm,user,pwd,port,out,inter=None,posn=None,results=None):
 		data = (snd+"\n").encode()
 		if out:
 			print(("T{}: ".format(posn+1) if posn!=None else "")+"C->S: ",snd, file=out)
-		soc1.sendall(data)
+		try:
+			soc1.sendall(data)
+		except:
+			raise Exception("7: Generic failure")
 	soc1.close()
 	soc2.close()
 	if results!=None:
@@ -103,8 +109,10 @@ def threadft(cmds, port, log): #multithread downloading
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(prog="pftp")
-	parser.add_argument("-s",metavar="hostname",dest="hostname")
-	parser.add_argument("-f",metavar="file",dest="filenm")
+	parser.add_argument("-s",help="required if -t not included,"+\
+		"can be address or format ftp://(address)/(directories), directories will be parsed"\
+		,metavar="hostname",dest="hostname")
+	parser.add_argument("-f",help='required if -t not included',metavar="file",dest="filenm")
 	parser.add_argument("-v", "--version",action="version",version="%(prog)s v0.1 by Michael Tang (mtang72)")
 	parser.add_argument("-p","--port",type=int,metavar="port",default=21)
 	parser.add_argument("-n","--username",metavar="user",default="anonymous")
@@ -120,6 +128,8 @@ if __name__ == "__main__":
 	filenm = args['filenm']
 	hostnm = args['hostname']
 	if hostnm and '/' in hostnm: #if directories in hostnm
+		if hostnm[0:6] != 'ftp://':
+			raise Exception('4: Syntax error in client request')
 		direc = re.search(r'/.*$',hostnm[6:]).group()
 		filenm = direc + ('/' if direc[-1]!='/' else '') + filenm
 		hostnm = re.search(r'(?<=ftp://).*(?=/)',hostnm).group()

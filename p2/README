@@ -4,13 +4,15 @@ This is my implementation of Project 2 of CS233: pftp, in Python 3.7. This clien
 
 To run, enter "./pftp.py" in the home directory with the suitable arguments. Arguments are described in the help message, invoked by including no arguments at all or -h/--help.
 
-There are 7 outputted codes, numbers 1-6 being raised exceptions:
+Until the very last step, all files written are temporary and would be deleted upon error or sudden exit.
+
+There are 8 outputted codes, numbers 1-7 being raised exceptions:
 0: Operation successfully completed, upon successful writing of the file to home directory.
 1: Can't connect to server, upon timeout or loss of connection. This exception will be thrown if FTP timeout codes are sent.
 2: Authentication failed, for incorrect username and password input.
 3: File not found, for incorrect filepath.
-4: Syntax error in client request, just in case I screwed up my FTP commands.
+4: Syntax error in client request, some argument was written incorrectly or I've formatted commands incorrectly (hasn't happened yet but just in case).
 5: Command not implemented/Operation not allowed. I couldn't find a specific FTP code on the Wikipedia page for forbidden operations, so general failures of a command will be lumped under this.
 6: Thread generic failure. Given when not all threads successfully return. Usually one of the above exceptions will be thrown by the failed thread beforehand.
+7: Generic failure. Things that should not happen but you never know.
 
-Until the very last step, all files written are temporary and would be deleted upon error or sudden exit.
