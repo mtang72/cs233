@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 import argparse, socket, multiprocessing
+from html.parser import HTMLParser
+
+class fuckyourmom(HTMLParser):
+	def handle_data():
+		pass
 
 def webcrawl(hostnm,port):
 	soc = socket.socket()
@@ -8,22 +13,25 @@ def webcrawl(hostnm,port):
 	except:
 		raise Exception("FUCK")
 	while True:
-		total = ''
-		while True:
-			line = input()
-			if line.strip('\n') == '':
-				break
-			total += line
-		print(total)
+		cmd = 'GET /index.html HTTP/1.1\r\nHost: eychtipi.cs.uchicago.edu\r\n\r\n'
 		try:
-			soc.sendall((total+'\r\n\r\n').encode())
+			soc.sendall((cmd).encode())
 		except:
 			raise Exception("fuck")
-		rec = soc.recv(256)
-		if not rec: #just in case
-			raise Exception("1: Can't connect to server")
-		msg = rec.decode().strip()
-		print(msg)
+		pos = 0
+		filesize = 10000
+		f = open("out.txt", "wb+")
+		while pos<filesize:
+			chunk = soc.recv(min(filesize-pos,4096))
+			pos += len(chunk)
+			if not chunk:
+				break
+			f.write(chunk)
+			#I'm Michael
+		f.seek(0)
+		print(f.read())
+		f.close()
+		#What the fuck is up Richard
 	return 0
 
 def multithread():
