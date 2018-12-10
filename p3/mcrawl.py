@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-import argparse, socket, multiprocessing
-from html.parser import HTMLParser
-
-class fuckyourmom(HTMLParser):
-	def handle_data():
-		pass
+import argparse, socket, multiprocessing, re
 
 def webcrawl(hostnm,port):
 	soc = socket.socket()
@@ -12,25 +7,59 @@ def webcrawl(hostnm,port):
 		soc.connect((hostnm,port))
 	except:
 		raise Exception("FUCK")
-	while True:
-		cmd = 'GET /index.html HTTP/1.1\r\nHost: eychtipi.cs.uchicago.edu\r\n\r\n'
+	links = ['http://www.google.com/index.html']
+	while links!=[]:
+		#get header
+		cmd = 'HEAD {} HTTP/1.1\r\nHost: {}\r\n\r\n'.format(links[-1],hostnm)
 		try:
-			soc.sendall((cmd).encode())
+			soc.sendall(cmd.encode())
 		except:
-			raise Exception("fuck")
-		pos = 0
-		filesize = 10000
-		f = open("out.txt", "wb+")
-		while pos<filesize:
-			chunk = soc.recv(min(filesize-pos,4096))
-			pos += len(chunk)
-			if not chunk:
+			raise Exception('fuck')
+		header = ''
+		while True:
+			chonk = soc.recv(2048)
+			header += chonk.decode()
+			if chonk[-4:] == b'\r\n\r\n':
 				break
-			f.write(chunk)
-			#I'm Michael
+		cmd = 'GET'+cmd[4:]
+		try:
+			soc.sendall(cmd.encode())
+		except:
+			raise Exception('fuck')
+		#skip header to start read
+		pos = 0
+		while pos<len(header):
+			chonk = soc.recv(len(header))
+			pos += len(chonk)
+		#get size of chonk, then read chonk
+		filenm = links[-1].split('/')[-1] if '/' in links[-1] else links[-1]
+		f = open(filenm,'wb+')
+		while True:
+			sz = ''
+			while True:
+				chonk = soc.recv(1)
+				if chonk == b'\r':
+					break
+				sz += chonk.decode()
+			sz = int(sz,base=16)
+			if sz == 0:
+				break
+			print(sz)
+			pos = 0
+			while pos<sz-1:
+				chonk = soc.recv(min(2048,sz-1-pos))
+				pos+=len(chonk)
+				f.write(chonk)
+		#links.pop()
 		f.seek(0)
 		print(f.read())
-		f.close()
+		"""links.extend(filter(lambda x:'html' in x and 'http://' not in x,\
+			re.findall(r'(?<=href=)[\'\"][^\'\"]*[\'\"]', f.read().decode())))
+		print(links)
+		f.close()"""
+		#Grace is tired
+		#Take her home
+		break
 		#What the fuck is up Richard
 	return 0
 
