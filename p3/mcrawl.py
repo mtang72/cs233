@@ -38,23 +38,25 @@ def webcrawl(hostnm,port):
 			sz = ''
 			while True:
 				chonk = soc.recv(1)
-				if chonk == b'\r':
+				if chonk == b'\n':
 					break
 				sz += chonk.decode()
-			sz = int(sz,base=16)
-			if sz == 0:
+			sz = int(sz[:-1],base=16)+2
+			if sz == 2:
 				break
-			print(sz)
 			pos = 0
-			while pos<sz-1:
-				chonk = soc.recv(min(2048,sz-1-pos))
+			while pos<sz:
+				chonk = soc.recv(min(2048,sz-pos))
 				pos+=len(chonk)
-				f.write(chonk)
+				f.write(chonk if chonk[-2:]!='\r\n' else chonk[:-2])
+			f.seek(-pos+2,1) #must account for removing \r\n from the end
+			print(f.read())
+			print(sz)
 		#links.pop()
-		f.seek(0)
-		print(f.read())
+		#f.seek(0)
+		#print(f.read())
 		"""links.extend(filter(lambda x:'html' in x and 'http://' not in x,\
-			re.findall(r'(?<=href=)[\'\"][^\'\"]*[\'\"]', f.read().decode())))
+			re.findall(r'(?<=href=)\'|\"[^\'\"]*\'|\"', f.read().decode())))
 		print(links)
 		f.close()"""
 		#Grace is tired
