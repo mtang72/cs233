@@ -1,15 +1,30 @@
 #!/usr/bin/env python3
 import argparse, socket, multiprocessing, re, os, tempfile, time, collections
 
+def reconnect(sock,hostnm,port):
+	print("reconnectin")
+	sock.close()
+	sock = socket.socket()
+	#sock.settimeout(5)
+	try:
+		sock.connect((hostnm,port))
+	except:
+		raise Exception('FUCK')
+	return sock
+
 def webcrawl(hostnm,port,files):
 	soc = socket.socket()
+	#soc.settimeout(5)
 	try:
 		soc.connect((hostnm,port))
 	except:
 		raise Exception("FUCK")
 	links = ['/index.html']
 	cookie = ''
+	backoff = 1
 	while links!=[]:
+		looprest = False #better way to reset loop
+
 		#file handling
 		if links[-1] in files:
 			links.pop()
@@ -28,35 +43,58 @@ def webcrawl(hostnm,port,files):
 			raise Exception('fuck')
 		header = b''
 		while True:
-			rec = soc.recv(512)
+			try:
+				rec = soc.recv(512)
+			except:
+				soc = reconnect(soc,hostnm,port)
+				cookie = ''
+				looprest = True
+				break
 			header += rec
 			if b'\r\n\r\n' in header:
 				break
+		if looprest:
+			continue
 
-		#pick out header and write initial parts of file leftover from header read
+		#pick out header and initial parts of file leftover from header read
 		head_end = header.index(b'\r\n\r\n')
 		post_head = header[head_end+4:]
-		f.write(post_head)
 		header = header[:head_end].decode()
 
 		#obviously, to determine if it's chonkytime or not
 		encoding_type = re.search(r'(?<=Transfer-Encoding:).*',header,re.IGNORECASE)
 		chonkytime = encoding_type!=None and re.match(r'chunked',encoding_type.group().strip(),re.IGNORECASE)!=None
+		firstround = False
 		if not chonkytime:
 			clength = re.search(r'(?<=Content-Length:).*',header,re.IGNORECASE)
 			sz = int(clength.group().strip())-len(post_head) if clength else False
+		elif post_head!=b'':
+			try:
+				sz_end = post_head.index(b'\r')
+				sz = post_head[:sz_end]
+				post_head = post_head[sz_end:]
+				sz = int(sz,base=16)+2
+				firstround = True
+			except ValueError:
+				sz += post_head
+				post_head = b''
+			post_head = post_head[2:] if len(post_head)>2 else b''
+		f.write(post_head)
+		
 		#actually reading the file
 		while True: 
-			sz = b'' if chonkytime else sz
+			sz = b'' if chonkytime and not firstround else sz
+			firstround = False
 			if chonkytime:
-				if post_head!=b'':
-					sz_end = post_head.index(b'\r')
-					sz += post_head[:sz_end]
-					post_head = post_head[sz_end+2:]
-					sz = int(sz,base=16)+2
 				if type(sz)!=int:
 					while True:
-						chonk = soc.recv(1)
+						try:
+							chonk = soc.recv(1)
+						except:
+							soc = reconnect(soc,hostnm,port)
+							cookie = ''
+							looprest = True
+							break
 						sz += chonk
 						if sz[-1:] == b'\n':
 							sz = int(sz[:-2],base=16)+2
@@ -64,16 +102,25 @@ def webcrawl(hostnm,port,files):
 				elif post_head!=b'':
 					sz -= len(post_head)
 					post_head = b''
+			if looprest:
+				break
 			if chonkytime and sz==2:
 				break
 			pos = 0
 			if not sz:
 				post_head_complete = not re.search(rb'</html>',post_head)
 				while post_head_complete:
-					chonk = soc.recv(2048)
-					if re.search(rb'</html>',chonk):
+					try:	
+						chonk = soc.recv(2048)
+					except:
+						soc = reconnect(soc,hostnm,port)
+						cookie = ''
+						looprest = True
+					if looprest or re.search(rb'</html>',chonk):
 						break
 					f.write(chonk)
+				if looprest:
+					break
 			while sz and pos<sz:
 				chonk = soc.recv(min(2048,sz-pos))
 				pos+=len(chonk)
@@ -89,7 +136,7 @@ def webcrawl(hostnm,port,files):
 
 		#header things
 		statuscode = re.search(r'(?<=HTTP/1\.1 )[0-9]+',header).group()
-		looprest = False #better way to reset loop
+		#print(header)
 		#is this an incorrect fucking filename? FUCK
 		if statuscode == '404':
 			print("FUCK YOU ",links[-1])
@@ -110,25 +157,25 @@ def webcrawl(hostnm,port,files):
 			raise Exception('malformed command: {}'.format(cmd))
 		#are they shutting the door on me? ITS TIME TO FUCKING DIE
 		if re.search(r'Connection: close',header,re.IGNORECASE):
-			soc.close()
-			soc = socket.socket()
-			try:
-				soc.connect((hostnm,port))
-			except:
-				raise Exception("FUCK")
+			reconnect(soc,hostnm,port)
 			cookie = ''
+			#print(header)
 			looprest = True
 		#im being rate limited aIYA
 		if statuscode == '402':
 			print("HEH")
 			f.close()
 			del files[links[-1]]
-			time.sleep(3)
+			time.sleep(backoff)
+			if backoff == 4:
+				cookie = ''
+				backoff = 0
+			backoff += 1
 			#links.appendleft(links.pop())
 			looprest = True
 		if looprest:
 			continue
-
+		backoff = 1 #successful transmission = reset backoff
 		#take link off queue and prepare f to read
 		links.pop()
 		f.seek(0)
