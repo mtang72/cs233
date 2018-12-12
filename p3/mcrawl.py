@@ -68,6 +68,8 @@ def webcrawl(hostnm,port,files):
 		if not chonkytime:
 			clength = re.search(r'(?<=Content-Length:).*',header,re.IGNORECASE)
 			sz = int(clength.group().strip())-len(post_head) if clength else False
+
+		#get the size of the first chonk
 		elif post_head!=b'':
 			try:
 				sz_end = post_head.index(b'\r')
@@ -80,11 +82,12 @@ def webcrawl(hostnm,port,files):
 				post_head = b''
 			post_head = post_head[2:] if len(post_head)>2 else b''
 		f.write(post_head)
-		
+
+		print(header)
 		#actually reading the file
 		while True: 
 			sz = b'' if chonkytime and not firstround else sz
-			firstround = False
+			firstround = False #because it's not the first round anymore
 			if chonkytime:
 				if type(sz)!=int:
 					while True:
@@ -94,12 +97,13 @@ def webcrawl(hostnm,port,files):
 							soc = reconnect(soc,hostnm,port)
 							cookie = ''
 							looprest = True
+							print("FUCK")
 							break
 						sz += chonk
 						if sz[-1:] == b'\n':
 							sz = int(sz[:-2],base=16)+2
 							break
-				elif post_head!=b'':
+				elif post_head!=b'': #account for that posthead size
 					sz -= len(post_head)
 					post_head = b''
 			if looprest:
@@ -107,7 +111,7 @@ def webcrawl(hostnm,port,files):
 			if chonkytime and sz==2:
 				break
 			pos = 0
-			if not sz:
+			if not sz: #non chonkytime and no size available
 				post_head_complete = not re.search(rb'</html>',post_head)
 				while post_head_complete:
 					try:	
@@ -116,6 +120,7 @@ def webcrawl(hostnm,port,files):
 						soc = reconnect(soc,hostnm,port)
 						cookie = ''
 						looprest = True
+					#print(chonk)
 					if looprest or re.search(rb'</html>',chonk):
 						break
 					f.write(chonk)
@@ -124,7 +129,10 @@ def webcrawl(hostnm,port,files):
 			while sz and pos<sz:
 				chonk = soc.recv(min(2048,sz-pos))
 				pos+=len(chonk)
-				f.write(chonk if chonk[-2:]!='\r\n' else chonk[:-2]) #remove the extra \r\n from the end of the chunk
+				f.write(chonk) 
+			#remove the extra \r\n from the end of the chunk/file
+			f.seek(-2,1)
+			f.truncate()
 			
 			#if you'd like to see what's being parsed (per chonk for chonkytime or the entire file otherwise), uncomment this
 			"""f.seek(-pos+2,1) #must account for removing \r\n from the end
@@ -167,10 +175,11 @@ def webcrawl(hostnm,port,files):
 			f.close()
 			del files[links[-1]]
 			time.sleep(backoff)
-			if backoff == 4:
+			if backoff == 8:
 				cookie = ''
-				backoff = 0
-			backoff += 1
+				backoff = 1
+			else:
+				backoff *= 2
 			#links.appendleft(links.pop())
 			looprest = True
 		if looprest:
