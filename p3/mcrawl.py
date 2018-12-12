@@ -12,7 +12,7 @@ def reconnect(sock,hostnm,port):
 		raise Exception('FUCK')
 	return sock
 
-def webcrawl(hostnm,port,files):
+def webcrawl(hostnm,port,files,processes=1,cookie=None):
 	soc = socket.socket()
 	#soc.settimeout(5)
 	try:
@@ -20,7 +20,6 @@ def webcrawl(hostnm,port,files):
 	except:
 		raise Exception("FUCK")
 	links = ['/index.html']
-	cookie = ''
 	backoff = 1
 	while links!=[]:
 		print(links)
@@ -198,10 +197,10 @@ def webcrawl(hostnm,port,files):
 			txt = f.read().decode()
 		except UnicodeDecodeError:
 			txt = ''
-		addl_links = list(filter(del_crap,re.findall(r'(?<=href=[\'\"])[^\'\"]*(?=[\'\"])', txt))) #read for href
-		addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt))) #read for src
+		addl_links = list(filter(del_crap,re.findall(r'(?<=href=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for href
+		addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for src
 		addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links) #shave off './', or add '/'
-		addl_links = map(lambda x:dirnm+x, addl_links) #add directory
+		addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else x[3:], addl_links) #add directory, or not if it's ../
 		links.extend(addl_links)
 		f.seek(0)
 		#Grace is tired
@@ -227,7 +226,8 @@ if __name__ == '__main__':
 	for file in files.keys():
 		filenm = file.split('/')[-1] if '/' in file else file
 		if filenm=='':
-			continue
+			#continue
+			filenm = 'index.html'
 		#handle duplicate files
 		dup = 1
 		filenm1 = filenm
