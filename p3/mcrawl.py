@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, socket, multiprocessing, re, os, tempfile
+import argparse, socket, multiprocessing, re, os, tempfile, time, collections
 
 def webcrawl(hostnm,port,files):
 	soc = socket.socket()
@@ -8,9 +8,20 @@ def webcrawl(hostnm,port,files):
 	except:
 		raise Exception("FUCK")
 	links = ['/index.html']
+	cookie = ''
 	while links!=[]:
+		#file handling
+		if links[-1] in files:
+			links.pop()
+			continue
+		files[links[-1]] = tempfile.TemporaryFile()
+		f = files[links[-1]]
+		dirnm = '/'.join(links[-1].split('/')[:-1]) if '/' in links[-1] else ''
+
 		#get header
 		cmd = 'GET {} HTTP/1.1\r\nHost: {}\r\n\r\n'.format(links[-1],hostnm)
+		if cookie:
+			cmd = cmd[:-4] + '\r\nCookie: ' + cookie + '\r\n\r\n'
 		try:
 			soc.sendall(cmd.encode())
 		except:
@@ -22,29 +33,6 @@ def webcrawl(hostnm,port,files):
 			if b'\r\n\r\n' in header:
 				break
 
-		#file handling
-		#specify filename to write in and dir to attach to given links
-		filenm, dirnm = '',''
-		if '/' in links[-1]:
-			filenm = links[-1].split('/')[-1]
-			dirnm = '/'.join(links[-1].split('/')[:-1])
-		else:
-			filenm = links[-1].split('/')[-1] if '/' in links[-1] else links[-1]
-		#handle duplicate files
-		dup = 1
-		filenm1 = filenm
-		curdir = set(os.listdir())
-		while filenm1 in curdir:
-			if '.' in filenm:
-				name_end = filenm.index('.')
-				filenm1 = filenm[:name_end]+'-'+str(dup)+filenm[name_end:]
-			else:
-				filenm1 += '-'+str(dup)
-			dup+=1
-		#open file
-		filenm = filenm1
-		files[filenm] = tempfile.TemporaryFile()
-		f = files[filenm]
 		#pick out header and write initial parts of file leftover from header read
 		head_end = header.index(b'\r\n\r\n')
 		post_head = header[head_end+4:]
@@ -98,30 +86,58 @@ def webcrawl(hostnm,port,files):
 
 			if not chonkytime:
 				break
+
+		#header things
+		statuscode = re.search(r'(?<=HTTP/1\.1 )[0-9]+',header).group()
+		looprest = False #better way to reset loop
+		#is this an incorrect fucking filename? FUCK
+		if statuscode == '404':
+			print("FUCK YOU ",links[-1])
+			f.close()
+			del files[links[-1]]
+			links.pop()
+			looprest = True
+		#did they fucking MOVE IT OH MY GOD
+		if statuscode=='301' or statuscode=='302':
+			newloc = re.search(r'(?<=Location:).*',header).group().strip()
+			f.close()
+			del files[links[-1]]
+			links.pop()
+			links.append(newloc)
+			looprest = True
+		#am i retarded yeah probably
+		if statuscode == '400':
+			raise Exception('malformed command: {}'.format(cmd))
+		#are they shutting the door on me? ITS TIME TO FUCKING DIE
+		if re.search(r'Connection: close',header,re.IGNORECASE):
+			soc.close()
+			soc = socket.socket()
+			try:
+				soc.connect((hostnm,port))
+			except:
+				raise Exception("FUCK")
+			cookie = ''
+			looprest = True
+		#im being rate limited aIYA
+		if statuscode == '402':
+			print("HEH")
+			f.close()
+			del files[links[-1]]
+			time.sleep(3)
+			#links.appendleft(links.pop())
+			looprest = True
+		if looprest:
+			continue
+
+		#take link off queue and prepare f to read
 		links.pop()
 		f.seek(0)
 
-		#eRRORs
-		#is this an incorrect fucking filename? FUCK
-		if '404' in header.split('\n')[0]:
-			print("FUCK YOU ",links[-1])
-			f.close()
-			del files[filenm]
-			continue
-		#did they fucking MOVE IT OH MY GOD
-		if '301' in header.split('\n')[0]:
-			newloc = re.search(r'(?<=Location:).*',header).group().strip()
-			links.append(newloc)
-			f.close()
-			del files[filenm]
-			continue
-		#am i retarded yeah probably
-		if '400' in header.split('\n')[0]:
-			raise Exception('malformed command: {}'.format(cmd))
-		#are they rate limiting me? ITS TIME TO FUCKING DIE
-		if re.search(r'Connection: close',header,re.IGNORECASE):
-			return 1
-			#raise Exception("i'm being fucking rate limited ree")
+		#cookie
+		if not cookie:
+			has_cookie = re.search(r'(?<=Cookie:)[^;]*',header)
+			if has_cookie:
+				cookie = has_cookie.group().strip()
 
 		#parsing links
 		del_crap = lambda x:x and '#' not in x and not (('http://' in x or 'https://' in x)\
@@ -130,12 +146,11 @@ def webcrawl(hostnm,port,files):
 			txt = f.read().decode()
 		except UnicodeDecodeError:
 			txt = ''
-		addl_links = list(filter(del_crap,re.findall(r'(?<=href=[\'\"])[^\'\"]*(?=[\'\"])', txt)))
-		addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt)))
-		addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links)
-		addl_links = map(lambda x:dirnm+x, addl_links)
+		addl_links = list(filter(del_crap,re.findall(r'(?<=href=[\'\"])[^\'\"]*(?=[\'\"])', txt))) #read for href
+		addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt))) #read for src
+		addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links) #shave off './', or add '/'
+		addl_links = map(lambda x:dirnm+x, addl_links) #add directory
 		links.extend(addl_links)
-		print(links)
 		f.seek(0)
 		#Grace is tired
 		#Take her home
@@ -158,8 +173,23 @@ if __name__ == '__main__':
 	files = {}
 	print(webcrawl(args['hostnm'],args['port'],files))
 	for file in files.keys():
-		if file=='':
+		filenm = file.split('/')[-1] if '/' in file else file
+		if filenm=='':
 			continue
-		with open(file,'wb') as f:
+		#handle duplicate files
+		dup = 1
+		filenm1 = filenm
+		curdir = set(os.listdir(args['dir']))
+		while filenm1 in curdir:
+			if '.' in filenm:
+				name_end = filenm.index('.')
+				filenm1 = filenm[:name_end]+'-'+str(dup)+filenm[name_end:]
+			else:
+				filenm1 += '-'+str(dup)
+			dup+=1
+		#write to an actual file
+		with open(args['dir']+('/' if args['dir'][-1]!='/' else '')+filenm1,'wb') as f:
 			f.write(files[file].read())
 		files[file].close()
+
+		
