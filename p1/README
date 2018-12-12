@@ -17,5 +17,5 @@ The functions in src.c are:
 Usage:
 	In program directory: ./snc [-l] [-u] [hostname] port
 	-l for server mode, -u for UDP mode. hostname is required if -l is not an option. port is always required and can only be between ports 1035 and 65535.
-	
+	CTRL-C to exit the program, like in netcat.	
 	Compile the program by running make. To delete the execution binary run make clean.

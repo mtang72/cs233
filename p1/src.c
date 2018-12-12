@@ -43,14 +43,14 @@ void server(int sockfd,char* hostnm,int port,int is_udp){
 	//receiving messages
 	while(1){
 		bzero(buffer,256);
-     		if (is_udp)
+     	if (is_udp)
 			n = recvfrom(sockfd, buffer, 256,
 			MSG_WAITALL, (struct sockaddr*) &cli_addr, &clilen);
 		else{
 			n = read(newsockfd,buffer,255);
      			if (n==0) return;
 		}
-     		printf("%s",buffer);
+     	printf("%s",buffer);
 	}
 }
 
@@ -87,6 +87,7 @@ void client(int sockfd,char* hostnm,int port,int is_udp){
 		else if (!is_udp){
 			n = write(sockfd,buffer,strlen(buffer));
 			if (n < 0) return; 
+			bzero(buffer,256);
 		}
 	}
 }
@@ -108,8 +109,7 @@ int main(int argc, char*argv[]){
 				port = atoi(argv[i]);
 		}
 	}
-	if (argc<2 || (!is_serv&&!strcmp(hostnm,"none")) || port<1025
-		|| port>65535)
+	if (argc<2 || (!is_serv&&!strcmp(hostnm,"none")))
 		error("invalid or missing options\nusage: snc [-l] [-u] [hostname] port");
 	//opening socket
 	int sockfd;
