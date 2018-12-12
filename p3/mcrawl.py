@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, socket, multiprocessing, re, os, tempfile, time, collections
+import argparse, socket, multiprocessing as mp, re, os, tempfile, time, collections, ctypes
 
 def reconnect(sock,hostnm,port):
 	print("reconnectin")
@@ -12,16 +12,19 @@ def reconnect(sock,hostnm,port):
 		raise Exception('FUCK')
 	return sock
 
-def webcrawl(hostnm,port,files,processes=1,cookie=None):
+def webcrawl(hostnm,port,files,globalcookie=None,globalqueue=None,linkqueue=None):
 	soc = socket.socket()
 	#soc.settimeout(5)
 	try:
 		soc.connect((hostnm,port))
 	except:
 		raise Exception("FUCK")
-	links = ['/index.html']
+	links = ['/index.html'] if not linkqueue else linkqueue.get()
 	backoff = 1
+	cookie = ''
 	while links!=[]:
+		links = links if not linkqueue else linkqueue.get()
+		cookie = globalcookie.value.decode() if globalcookie else cookie
 		print(links)
 		looprest = False #better way to reset loop
 
@@ -188,7 +191,11 @@ def webcrawl(hostnm,port,files,processes=1,cookie=None):
 		if not cookie:
 			has_cookie = re.search(r'(?<=Cookie:)[^;]*',header)
 			if has_cookie:
-				cookie = has_cookie.group().strip()
+				if globalcookie:
+					with globalcookie.get_lock():
+						globalcookie.value = has_cookie.group().strip().encode()
+				else:
+					cookie = has_cookie.group().strip()
 
 		#parsing links
 		del_crap = lambda x:x and '#' not in x and not (('http://' in x or 'https://' in x)\
@@ -200,17 +207,36 @@ def webcrawl(hostnm,port,files,processes=1,cookie=None):
 		addl_links = list(filter(del_crap,re.findall(r'(?<=href=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for href
 		addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for src
 		addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links) #shave off './', or add '/'
-		addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else x[3:], addl_links) #add directory, or not if it's ../
-		links.extend(addl_links)
+		addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else x[3:], addl_links) #add directory, or not if it's '../'
+		if linkqueue:
+			linkqueue.put(addl_links)
+		else:
+			links.extend(addl_links)
 		f.seek(0)
 		#Grace is tired
 		#Take her home
 		#break
 		#What the fuck is up Richard
+	if filequeue:
+		filequeue.put(files)
 	return 0
 
-def multithread():
-	pass
+def multithread(hostnm,port,files,processes,cookielock):
+	globalcookie = mp.Array(ctypes.c_char,512) if cookielock else None
+	fq = mp.Queue()
+	lq = mp.Queue()
+	lq.put(['/index.html'])
+	ps = [mp.Process(target=webcrawl, args=(hostnm,port,{}),\
+		kwargs={'globalcookie':globalcookie,'linkqueue':lq,'filequeue':fq}) for _ in range(processes)]
+	for p in ps:
+		p.start()
+	for p in ps:
+		p.join()
+	allfiles = fq.get()
+	for i in range(1,len(allfiles)):
+		allfiles[0].update(allfiles[i])
+	files = allfiles[0]
+	return 0
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(prog='mcrawl',add_help=False)
@@ -218,11 +244,11 @@ if __name__ == '__main__':
 	parser.add_argument('-h','--hostname',dest='hostnm',required=True)
 	parser.add_argument('-p','--port',type=int,dest='port',required=True)
 	parser.add_argument('-f','--local-directory',dest='dir',required=True)
+	parser.add_argument('-cl','--cookie-lock',type=int,dest='cl',default=1)
 	args = vars(parser.parse_args())
-	if args['nthreads'] > 1:
-		multithread()
 	files = {}
-	print(webcrawl(args['hostnm'],args['port'],files))
+	print(multithread(args['hostnm'],args['port'],files,args['nthreads'],args['cl'])\
+		if args['nthreads']>1 else webcrawl(args['hostnm'],args['port'],files))
 	for file in files.keys():
 		filenm = file.split('/')[-1] if '/' in file else file
 		if filenm=='':
