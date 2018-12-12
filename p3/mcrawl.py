@@ -130,7 +130,11 @@ def webcrawl(hostnm,port,files):
 				chonk = soc.recv(min(2048,sz-pos))
 				pos+=len(chonk)
 				f.write(chonk) 
-			#remove the extra \r\n from the end of the chunk/file
+
+			if not chonkytime:
+				break
+
+			#remove the extra \r\n from the end of the chunk
 			f.seek(-2,1)
 			f.truncate()
 			
@@ -138,9 +142,6 @@ def webcrawl(hostnm,port,files):
 			"""f.seek(-pos+2,1) #must account for removing \r\n from the end
 			print(f.read()) 
 			print(sz)"""
-
-			if not chonkytime:
-				break
 
 		#header things
 		statuscode = re.search(r'(?<=HTTP/1\.1 )[0-9]+',header).group()
