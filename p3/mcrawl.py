@@ -23,6 +23,7 @@ def webcrawl(hostnm,port,files):
 	cookie = ''
 	backoff = 1
 	while links!=[]:
+		print(links)
 		looprest = False #better way to reset loop
 
 		#file handling
@@ -36,7 +37,7 @@ def webcrawl(hostnm,port,files):
 		#get header
 		cmd = 'GET {} HTTP/1.1\r\nHost: {}\r\n\r\n'.format(links[-1],hostnm)
 		if cookie:
-			cmd = cmd[:-4] + '\r\nCookie: ' + cookie + '\r\n\r\n'
+			cmd = cmd[:-2] + 'Cookie: ' + cookie + '\r\n\r\n'
 		try:
 			soc.sendall(cmd.encode())
 		except:
@@ -83,7 +84,7 @@ def webcrawl(hostnm,port,files):
 			post_head = post_head[2:] if len(post_head)>2 else b''
 		f.write(post_head)
 
-		print(header)
+		#print(header)
 		#actually reading the file
 		while True: 
 			sz = b'' if chonkytime and not firstround else sz
@@ -97,7 +98,6 @@ def webcrawl(hostnm,port,files):
 							soc = reconnect(soc,hostnm,port)
 							cookie = ''
 							looprest = True
-							print("FUCK")
 							break
 						sz += chonk
 						if sz[-1:] == b'\n':
@@ -165,7 +165,7 @@ def webcrawl(hostnm,port,files):
 			raise Exception('malformed command: {}'.format(cmd))
 		#are they shutting the door on me? ITS TIME TO FUCKING DIE
 		if re.search(r'Connection: close',header,re.IGNORECASE):
-			reconnect(soc,hostnm,port)
+			soc = reconnect(soc,hostnm,port)
 			cookie = ''
 			#print(header)
 			looprest = True
@@ -174,13 +174,8 @@ def webcrawl(hostnm,port,files):
 			print("HEH")
 			f.close()
 			del files[links[-1]]
-			time.sleep(backoff)
-			if backoff == 8:
-				cookie = ''
-				backoff = 1
-			else:
-				backoff *= 2
-			#links.appendleft(links.pop())
+			#time.sleep(backoff)
+			cookie = ''
 			looprest = True
 		if looprest:
 			continue
