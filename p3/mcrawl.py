@@ -18,7 +18,7 @@ def reconnect(sock,hostnm,port,globalcookie):
 def linkfromglobal(glob,fin,lock):
 	start = time.time()
 	upcoming = None
-	while upcoming==None and time.time()-start<2:
+	while upcoming==None and time.time()-start<1: #i hate this so much but i see no other solution
 		try:
 			upcoming = glob.pop()
 		except IndexError:
@@ -56,7 +56,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 		and re.search(r'(?<=://)[^/]*',x).group()!=hostnm) #for link cleaning later
 	while links!=[]:
 		cookie = globalcookie.value.decode() if globalcookie!=None else cookie
-		print("pid {}: {} vs global {}".format(pid,cookie,globalcookie.value.decode()))
+		#print("pid {}: {} vs global {}".format(pid,cookie,globalcookie.value.decode() if globalcookie!=None else None))
 		"""if globalfinished!=None:
 			print(globalfinished,linkqueue,links)
 		else:
@@ -268,7 +268,8 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 				if item not in addl_links:
 					addl_links.append(item)
 			addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links) #shave off './', or add '/'
-			addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else x[3:], addl_links) #add directory, or not if it's '../'
+			addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else (x[3:] if '/' not in dirnm\
+				else '/'.join(dirnm.split('/')[:-1])+x[3:]), addl_links) #add directory, backtrack directory if it's '../'
 			if linkqueue!=None:
 				for link in addl_links:
 					linkqueue.append(link)
