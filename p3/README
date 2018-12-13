@@ -1,0 +1,35 @@
+mcrawl v1.0
+by Michael Tang (CNETID: mtang72), 12/13/2018, CMSC 23300
+
+This is an implementation of p3 mcrawl in Python 3.7.
+
+###### ARGUMENTS ######
+For the sake of argument naming, -h/--help has been disabled. The arguments are as follows:
+-n/--max-flows               to specify the number of processes to use.
+-h/--hostname                for the server to download from. This can be in IP or domain form.
+-p/--port                    for the port to bind to. At default for HTTP this would be port 80.
+-f/--local-directory         for directory to write the downloads to. If directory doesn't exist a new one will be created, as long as the name is valid.
+-cl/--cookie-lock            for multiprocessing, if value is 1 all the processes are forced to share one cookie. If 0, then processes are allowed to use separate cookies. Default value is 1, and this only has an effect when -n/--max-flows > 1.
+
+All arguments are required except for -cl/--cookie-lock.
+
+###### CRAWLER DESIGN ######
+Single process implementation initializes a TCP socket with the Python socket interface and starts with a queue containing '/index.html', which is then attached in a GET request to the server. The first batch of recv requests are to receive the header, and the header is distinguished by scanning for the '\r\n\r\n' that comes at the end of it, and saved.
+The leftover bytes received from that first batch are then scanned to get the first chunk size and the first bytes of the first chunk. If the '\r\n' at the end of the chunk size specification is not reached then additional calls of recv(1) are scanned for the size.
+With the first chunk size in hand, recv batches are looped to get the full chunk, then extract the next chunk size, and so on. Chunks are written to a temporary file descriptor saved in a dictionary with the filename as the key. Temporary file descriptor object is provided by the Python tempfile module.
+Upon receiving the final '0' size, the tempfile is analyzed for more links which are put onto the queue, which are retrieved. Also, upon receiving a cookie from the first response from the server, the cookie is then provided in later GET requests. If rate limiting is encountered then the cookie is deleted in order to receive a fresh one upon the next request.
+Upon emptying of the queue, the tempfiles stored in the dictionary are written to permanent files in the requested directory, and the crawler exits after closing socket. If a critical error is encountered before reaching this stage, then the tempfiles will be deleted during garbage collection.
+
+In multi-process implementation each process uses the same function as the single process implementation, except now the queue is shared between all processes using the multiprocessing.Manager() class, which runs a separate process to manage the updating of this queue. If -cl/--cookie-lock is 1, then a shared char array is also provided for this cookie, with max size being 4096 bytes in accordance with IETF guidelines for cookie allocation. The updating of the link queue and the shared cookie and the scanning of link queue for duplicate links are made atomic by locks, implemented in the object or manually by me.
+
+Upon return of the crawler, the number of files that were downloaded will be returned and printed.
+
+###### ERRORS ######
+The exceptions raised for user are:
+Directory errors                Inappropriate naming, or no permission to write.
+Socket connection failure       Failure to establish a connection, potentially by user entry error of hostname and port
+Malformed command				Upon receiving 400 Bad Request from the server. Shouldn't happen and something's wrong with the code if it does.
+
+There are also errors that do not cause exit:
+File not found					File no longer exists in server. The link and the tempfile will be removed and the crawler will continue.
+Connection dropped				When the server times out, or drops after too many requests. Socket will be restarted and reconnection will be attempted.

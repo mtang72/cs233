@@ -327,10 +327,11 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 		lock.release()
 	if nums != None:
 		nums[pid] = len(files)
+	soc.close()
 	return 'Number of files downloaded: {}'.format(len(files))
 
 def multithread(hostnm,port,direc,processes,cookielock):
-	globalcookie = mp.Array(ctypes.c_char,512) if cookielock else None
+	globalcookie = mp.Array(ctypes.c_char,4096) if cookielock else None
 	locc = mp.Lock()
 	kidager = mp.Manager()
 	gf = kidager.list()
