@@ -15,7 +15,7 @@ def reconnect(sock,hostnm,port,globalcookie):
 			globalcookie.value = b''
 	return sock
 
-def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
+def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globalfinished=None):
 	soc = socket.socket()
 	#soc.settimeout(5)
 	try:
@@ -34,22 +34,18 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 	cookie = ''
 	sz = b''
 	files = {}
+	finishedlinks = []
 	del_crap = lambda x:x and '#' not in x and not (('http://' in x or 'https://' in x)\
 		and re.search(r'(?<=://)[^/]*',x).group()!=hostnm) #for link cleaning later
 	while links!=[]:
 		cookie = globalcookie.value.decode() if globalcookie else cookie
-		print(linkqueue, links)
+		if globalfinished!=None:
+			print(globalfinished,linkqueue,links)
+		else:
+			print(finishedlinks,links)
 		looprest = False #better way to reset loop
 
 		#file handling
-		if links[-1] in files:
-			links.pop()
-			if linkqueue != None:
-				try:
-					links.append(linkqueue.pop())
-				except IndexError:
-					pass
-			continue
 		files[links[-1]] = tempfile.TemporaryFile()
 		f = files[links[-1]]
 		dirnm = '/'.join(links[-1].split('/')[:-1]) if '/' in links[-1] else ''
@@ -103,7 +99,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 				post_head = b''
 			post_head = post_head[2:] if len(post_head)>2 else b''
 		f.write(post_head)
-		print(header,sz)
+		#print(header,sz)
 		#print(header)
 		#actually reading the file
 		while True: 
@@ -174,14 +170,22 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 			print("FUCK YOU ",links[-1])
 			f.close()
 			del files[links[-1]]
-			links.pop()
+			fin = links.pop()
+			if globalfinished != None:
+				globalfinished.append(fin)
+			else:
+				finishedlinks.append(fin)
 			looprest = True
 		#did they fucking MOVE IT OH MY GOD
 		if statuscode=='301' or statuscode=='302':
 			newloc = re.search(r'(?<=Location:).*',header).group().strip()
 			f.close()
 			del files[links[-1]]
-			links.pop()
+			fin = links.pop()
+			if globalfinished != None:
+				globalfinished.append(fin)
+			else:
+				finishedlinks.append(fin)
 			links.append(newloc)
 			looprest = True
 		#am i retarded yeah probably
@@ -214,7 +218,11 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 			continue
 
 		#take link off queue and prepare f to read
-		links.pop()
+		fin = links.pop()
+		if globalfinished != None:
+			globalfinished.append(fin)
+		else:
+			finishedlinks.append(fin)
 		f.seek(0)
 
 		#cookie
@@ -235,19 +243,26 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 			except UnicodeDecodeError:
 				txt = ''
 			addl_links = list(filter(del_crap,re.findall(r'(?<=href=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for href
-			addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for src
-			addl_links.extend(filter(del_crap,re.findall(r'https*://\S*',txt,re.IGNORECASE))) #i dunno, maybe other buggers living about
+			for item in filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE)): #read for src
+				if item not in addl_links:
+					addl_links.append(item)
+			for item in filter(del_crap,re.findall(r'https*://\S*',txt,re.IGNORECASE)): #i dunno, maybe other buggers living about
+				if item not in addl_links:
+					addl_links.append(item)
 			addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links) #shave off './', or add '/'
 			addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else x[3:], addl_links) #add directory, or not if it's '../'
 			if linkqueue!=None:
 				for link in addl_links:
-					linkqueue.append(link)
+					if link not in globalfinished:
+						linkqueue.append(link)
 				try:
 					links.append(linkqueue.pop())
 				except IndexError:
 					pass
 			else:
-				links.extend(addl_links)
+				for link in addl_links:
+					if link not in finishedlinks:
+						links.append(link)
 			f.seek(0)
 		elif linkqueue!=None:
 			try:
@@ -287,15 +302,15 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 def multithread(hostnm,port,direc,processes,cookielock):
 	globalcookie = mp.Array(ctypes.c_char,512) if cookielock else None
 	locc = mp.Lock()
-	lq = mp.Manager().list(['/index.html'])
+	kidager = mp.Manager()
+	gf = kidager.list()
+	lq = kidager.list(['/index.html'])
 	ps = [mp.Process(target=webcrawl, args=(hostnm,port,direc),\
-		kwargs={'globalcookie':globalcookie,'linkqueue':lq,'lock':locc}) for i in range(processes)]
-	ps[0].start()
-	ps[0].join()
-	"""for p in ps:
+		kwargs={'globalcookie':globalcookie,'linkqueue':lq,'lock':locc,'globalfinished':gf}) for i in range(processes)]
+	for p in ps:
 		p.start()
 	for p in ps:
-		p.join()"""
+		p.join()
 	return 0
 
 if __name__ == '__main__':
