@@ -34,6 +34,8 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 	cookie = ''
 	sz = b''
 	files = {}
+	del_crap = lambda x:x and '#' not in x and not (('http://' in x or 'https://' in x)\
+		and re.search(r'(?<=://)[^/]*',x).group()!=hostnm) #for link cleaning later
 	while links!=[]:
 		cookie = globalcookie.value.decode() if globalcookie else cookie
 		print(linkqueue, links)
@@ -226,27 +228,32 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 					cookie = has_cookie.group().strip()
 
 		#parsing links
-		del_crap = lambda x:x and '#' not in x and not (('http://' in x or 'https://' in x)\
-			and re.search(r'(?<=://)[^/]*',x).group()!=hostnm)
-		try:
-			txt = f.read().decode()
-		except UnicodeDecodeError:
-			txt = ''
-		addl_links = list(filter(del_crap,re.findall(r'(?<=href=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for href
-		addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for src
-		addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links) #shave off './', or add '/'
-		addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else x[3:], addl_links) #add directory, or not if it's '../'
-		if linkqueue!=None:
-			for link in addl_links:
-				linkqueue.append(link)
-			print(linkqueue)
+		content_type = re.search(r'(?<=Content-Type:).*',header,re.IGNORECASE)
+		if content_type and content_type.group().strip().lower() == 'text/html':
+			try:
+				txt = f.read().decode()
+			except UnicodeDecodeError:
+				txt = ''
+			addl_links = list(filter(del_crap,re.findall(r'(?<=href=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for href
+			addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for src
+			addl_links.extend(filter(del_crap,re.findall(r'https*://\S*',txt,re.IGNORECASE))) #i dunno, maybe other buggers living about
+			addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links) #shave off './', or add '/'
+			addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else x[3:], addl_links) #add directory, or not if it's '../'
+			if linkqueue!=None:
+				for link in addl_links:
+					linkqueue.append(link)
+				try:
+					links.append(linkqueue.pop())
+				except IndexError:
+					pass
+			else:
+				links.extend(addl_links)
+			f.seek(0)
+		elif linkqueue!=None:
 			try:
 				links.append(linkqueue.pop())
 			except IndexError:
 				pass
-		else:
-			links.extend(addl_links)
-		f.seek(0)
 		#Grace is tired
 		#Take her home
 		#break
