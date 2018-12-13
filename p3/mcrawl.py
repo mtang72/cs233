@@ -342,8 +342,8 @@ def multithread(hostnm,port,direc,processes,cookielock):
 		p.start()
 	for p in ps:
 		p.join()
-	for i in range(len(nums)):
-		print('Process {}: {} files'.format(i,nums[i]))
+	"""for i in range(len(nums)):
+		print('Process {}: {} files'.format(i,nums[i]))"""
 	return 'Number of files downloaded: {}'.format(sum(nums))
 
 if __name__ == '__main__':
