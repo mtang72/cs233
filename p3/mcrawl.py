@@ -17,20 +17,22 @@ def reconnect(sock,hostnm,port,globalcookie):
 def linkfromglobal(glob,fin,lock):
 	start = time.time()
 	upcoming = None
-	while upcoming==None and time.time()-start<1:
+	while upcoming==None and time.time()-start<0.23:
+		#print(time.time())
 		try:
 			upcoming = glob.pop()
 		except IndexError:
 			pass
-		lock.acquire()
-		if not upcoming or (upcoming and upcoming in fin):
-			upcoming = None
-		else:
-			fin.append(upcoming)
-		lock.release()
+		if upcoming:
+			lock.acquire()
+			if upcoming in fin:
+				upcoming = None
+			else:
+				fin.append(upcoming)
+			lock.release()
 	return upcoming
 
-def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globalfinished=None, pid=None):
+def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globalfinished=None, pid=None, nums=None):
 	soc = socket.socket()
 	#soc.settimeout(5)
 	try:
@@ -217,7 +219,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 			looprest = True
 		#im being rate limited aIYA
 		if statuscode == '402':
-			print("Rate limit encountered on {}, retrying".format(links[-1]))
+			#print("Rate limit encountered on {}, retrying".format(links[-1]))
 			f.close()
 			del files[links[-1]]
 			cookie = ''
@@ -311,7 +313,9 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 		files[file].close()
 	if lock != None:
 		lock.release()
-	return 0
+	if nums != None:
+		nums[pid] = len(files)
+	return 'Number of files downloaded: {}'.format(len(files))
 
 def multithread(hostnm,port,direc,processes,cookielock):
 	globalcookie = mp.Array(ctypes.c_char,512) if cookielock else None
@@ -319,13 +323,16 @@ def multithread(hostnm,port,direc,processes,cookielock):
 	kidager = mp.Manager()
 	gf = kidager.list()
 	lq = kidager.list(['/index.html'])
+	nums = kidager.list([0 for _ in range(processes)])
 	ps = [mp.Process(target=webcrawl, args=(hostnm,port,direc),\
-		kwargs={'globalcookie':globalcookie,'linkqueue':lq,'lock':locc,'globalfinished':gf,'pid':i+1}) for i in range(processes)]
+		kwargs={'globalcookie':globalcookie,'linkqueue':lq,'lock':locc,'globalfinished':gf,'pid':i,'nums':nums}) for i in range(processes)]
 	for p in ps:
 		p.start()
 	for p in ps:
 		p.join()
-	return 0
+	for i in range(len(nums)):
+		print('Process {}: {} files'.format(i,nums[i]))
+	return 'Number of files downloaded: {}'.format(sum(nums))
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(prog='mcrawl',add_help=False)
