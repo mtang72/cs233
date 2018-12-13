@@ -2,14 +2,13 @@
 import argparse, socket, multiprocessing as mp, re, os, tempfile, time, collections, ctypes
 
 def reconnect(sock,hostnm,port,globalcookie):
-	print("reconnectin")
+	print("Connection dropped, reconnecting")
 	sock.close()
 	sock = socket.socket()
-	#sock.settimeout(5)
 	try:
 		sock.connect((hostnm,port))
 	except:
-		raise Exception('FUCK')
+		raise Exception('Socket connection failure')
 	if globalcookie:
 		with globalcookie.get_lock():
 			globalcookie.value = b''
@@ -18,7 +17,7 @@ def reconnect(sock,hostnm,port,globalcookie):
 def linkfromglobal(glob,fin,lock):
 	start = time.time()
 	upcoming = None
-	while upcoming==None and time.time()-start<1: #i hate this so much but i see no other solution
+	while upcoming==None and time.time()-start<1:
 		try:
 			upcoming = glob.pop()
 		except IndexError:
@@ -37,13 +36,12 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 	try:
 		soc.connect((hostnm,port))
 	except:
-		raise Exception("FUCK")
+		raise Exception('Socket connection failure')
 	links = []
-	while linkqueue!=None and links==[]: #ISSUE: what if there are no more files left to take?
+	if linkqueue!=None: #ISSUE: what if there are no more files left to take?
 		upcoming = linkfromglobal(linkqueue,globalfinished,lock)
-		if not upcoming:
-			break
-		links.append(upcoming)	
+		if upcoming:
+			links.append(upcoming)	
 	if linkqueue==None:
 		links = ['/index.html']
 	backoff = 1
@@ -55,7 +53,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 	del_crap = lambda x:x and '#' not in x and not (('http://' in x or 'https://' in x)\
 		and re.search(r'(?<=://)[^/]*',x).group()!=hostnm) #for link cleaning later
 	while links!=[]:
-		cookie = globalcookie.value.decode() if globalcookie!=None else cookie
+		
 		#print("pid {}: {} vs global {}".format(pid,cookie,globalcookie.value.decode() if globalcookie!=None else None))
 		"""if globalfinished!=None:
 			print(globalfinished,linkqueue,links)
@@ -70,12 +68,15 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 
 		#get header
 		cmd = 'GET {} HTTP/1.1\r\nHost: {}\r\n\r\n'.format(links[-1],hostnm)
+		cookie = globalcookie.value.decode() if globalcookie!=None else cookie
 		if cookie:
 			cmd = cmd[:-2] + 'Cookie: ' + cookie + '\r\n\r\n'
 		try:
 			soc.sendall(cmd.encode())
 		except:
-			raise Exception('fuck')
+			soc = reconnect(soc,hostnm,port,globalcookie)
+			cookie = ''
+			continue
 		header = b''
 		while True:
 			try:
@@ -183,9 +184,9 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 		#header things
 		statuscode = re.search(r'(?<=HTTP/1\.1 )[0-9]+',header).group()
 		#print(header)
-		#is this an incorrect fucking filename? FUCK
+		#is this an incorrect filename?
 		if statuscode == '404':
-			print("FUCK YOU ",links[-1])
+			print("File not found: ",links[-1])
 			f.close()
 			del files[links[-1]]
 			fin = links.pop()
@@ -194,40 +195,38 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 			else:
 				finishedlinks.append(fin)
 			looprest = True
-		#did they fucking MOVE IT OH MY GOD
+		#did they move it?
 		if statuscode=='301' or statuscode=='302':
 			newloc = re.search(r'(?<=Location:).*',header).group().strip()
 			f.close()
 			del files[links[-1]]
 			fin = links.pop()
 			if globalfinished != None:
-				globalfinished.append(fin)
-			else:
 				finishedlinks.append(fin)
+			else:
+				globalfinished.append(newloc)
 			links.append(newloc)
 			looprest = True
-		#am i retarded yeah probably
+		#i screwed up
 		if statuscode == '400':
-			raise Exception('malformed command: {}'.format(cmd))
-		#are they shutting the door on me? ITS TIME TO FUCKING DIE
+			raise Exception('Malformed command: {}'.format(cmd))
+		#they're shutting the door on me :(
 		if re.search(r'Connection: close',header,re.IGNORECASE):
 			soc = reconnect(soc,hostnm,port,globalcookie)
 			cookie = ''
-			#print(header)
 			looprest = True
 		#im being rate limited aIYA
 		if statuscode == '402':
-			print("HEH")
+			print("Rate limit encountered on {}, retrying".format(links[-1]))
 			f.close()
 			del files[links[-1]]
-			#time.sleep(backoff)
 			cookie = ''
 			if globalcookie:
 				with globalcookie.get_lock():
 					globalcookie.value = b''
 			looprest = True
 
-		if looprest:
+		if looprest: #skip what's below and go back to top of while
 			if not links and linkqueue!=None:
 				upcoming = linkfromglobal(linkqueue,globalfinished,lock)
 				if not upcoming:
@@ -286,11 +285,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 			upcoming = linkfromglobal(linkqueue,globalfinished,lock)
 			if not upcoming:
 				break
-			links.append(upcoming)	
-		#Grace is tired
-		#Take her home
-		#break
-		#What the fuck is up Richard
+			links.append(upcoming)
 
 	if lock != None:
 		lock.acquire()
@@ -338,8 +333,22 @@ if __name__ == '__main__':
 	parser.add_argument('-h','--hostname',dest='hostnm',required=True)
 	parser.add_argument('-p','--port',type=int,dest='port',required=True)
 	parser.add_argument('-f','--local-directory',dest='dir',required=True)
-	parser.add_argument('-cl','--cookie-lock',type=int,dest='cl',default=1)
+	parser.add_argument('-cl','--cookie-lock',type=int,dest='cl',default=1,choices=[0,1])
 	args = vars(parser.parse_args())
+	try:
+		listdir = os.listdir(args['dir'])
+	except FileNotFoundError:
+		try:
+			os.mkdir(args['dir'])
+		except FileNotFoundError:
+			raise Exception('Inappropriate name for a directory')
+	try:
+		f = open(args['dir']+('/' if args['dir'][-1]!='/' else '')+'test.txt','w')
+		f.write('test')
+	except (IOError,PermissionError):
+		raise Exception('No permission to write to directory')
+	f.close()
+	os.remove(args['dir']+('/' if args['dir'][-1]!='/' else '')+'test.txt')
 	print(multithread(args['hostnm'],args['port'],args['dir'],args['nthreads'],args['cl']) if args['nthreads']>1\
 		else webcrawl(args['hostnm'],args['port'],args['dir']))
 
