@@ -22,7 +22,14 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 		soc.connect((hostnm,port))
 	except:
 		raise Exception("FUCK")
-	links = [linkqueue.pop() if linkqueue!=None else '/index.html']
+	links = []
+	while linkqueue!=None and links==[]:
+		try:
+			links.append(linkqueue.pop())
+		except IndexError:
+			pass
+	if linkqueue==None:
+		links = ['/index.html']
 	backoff = 1
 	cookie = ''
 	sz = b''
@@ -35,7 +42,11 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 		#file handling
 		if links[-1] in files:
 			links.pop()
-			links.append(linkqueue.pop())
+			if linkqueue != None:
+				try:
+					links.append(linkqueue.pop())
+				except IndexError:
+					pass
 			continue
 		files[links[-1]] = tempfile.TemporaryFile()
 		f = files[links[-1]]
@@ -194,7 +205,10 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 
 		if looprest:
 			if not links:
-				links.append(linkqueue.pop())
+				try:
+					links.append(linkqueue.pop())
+				except IndexError:
+					pass
 			continue
 
 		#take link off queue and prepare f to read
@@ -226,7 +240,10 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 			for link in addl_links:
 				linkqueue.append(link)
 			print(linkqueue)
-			links.append(linkqueue.pop())
+			try:
+				links.append(linkqueue.pop())
+			except IndexError:
+				pass
 		else:
 			links.extend(addl_links)
 		f.seek(0)
