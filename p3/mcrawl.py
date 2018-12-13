@@ -14,11 +14,23 @@ def reconnect(sock,hostnm,port,globalcookie):
 			globalcookie.value = b''
 	return sock
 
-def linkfromglobal(glob,fin,lock):
+def linkfromglobal(glob,fin,lock,globalcookie):
 	start = time.time()
 	upcoming = None
-	while upcoming==None and time.time()-start<0.23:
+	while upcoming==None and time.time()-start<(0.25 if globalcookie==None else 0.39):
 		#print(time.time())
+		try:
+			upcoming = glob.pop()
+		except IndexError:
+			pass
+		if upcoming:
+			lock.acquire()
+			if upcoming in fin:
+				upcoming = None
+			else:
+				fin.append(upcoming)
+			lock.release()
+	if not upcoming:
 		try:
 			upcoming = glob.pop()
 		except IndexError:
@@ -41,7 +53,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 		raise Exception('Socket connection failure')
 	links = []
 	if linkqueue!=None: #ISSUE: what if there are no more files left to take?
-		upcoming = linkfromglobal(linkqueue,globalfinished,lock)
+		upcoming = linkfromglobal(linkqueue,globalfinished,lock,globalcookie)
 		if upcoming:
 			links.append(upcoming)	
 	if linkqueue==None:
@@ -230,7 +242,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 
 		if looprest: #skip what's below and go back to top of while
 			if not links and linkqueue!=None:
-				upcoming = linkfromglobal(linkqueue,globalfinished,lock)
+				upcoming = linkfromglobal(linkqueue,globalfinished,lock,globalcookie)
 				if not upcoming:
 					break
 				links.append(upcoming)	
@@ -274,7 +286,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 			if linkqueue!=None:
 				for link in addl_links:
 					linkqueue.append(link)
-				upcoming = linkfromglobal(linkqueue,globalfinished,lock)
+				upcoming = linkfromglobal(linkqueue,globalfinished,lock,globalcookie)
 				if not upcoming:
 					break
 				links.append(upcoming)		
@@ -284,7 +296,7 @@ def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None, globa
 						links.append(link)
 			f.seek(0)
 		elif linkqueue!=None:
-			upcoming = linkfromglobal(linkqueue,globalfinished,lock)
+			upcoming = linkfromglobal(linkqueue,globalfinished,lock,globalcookie)
 			if not upcoming:
 				break
 			links.append(upcoming)
