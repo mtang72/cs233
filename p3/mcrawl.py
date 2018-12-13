@@ -12,7 +12,7 @@ def reconnect(sock,hostnm,port):
 		raise Exception('FUCK')
 	return sock
 
-def webcrawl(hostnm,port,files,globalcookie=None,globalqueue=None,linkqueue=None):
+def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
 	soc = socket.socket()
 	#soc.settimeout(5)
 	try:
@@ -22,6 +22,7 @@ def webcrawl(hostnm,port,files,globalcookie=None,globalqueue=None,linkqueue=None
 	links = ['/index.html'] if not linkqueue else linkqueue.get()
 	backoff = 1
 	cookie = ''
+	sz = b''
 	while links!=[]:
 		links = links if not linkqueue else linkqueue.get()
 		cookie = globalcookie.value.decode() if globalcookie else cookie
@@ -85,7 +86,7 @@ def webcrawl(hostnm,port,files,globalcookie=None,globalqueue=None,linkqueue=None
 				post_head = b''
 			post_head = post_head[2:] if len(post_head)>2 else b''
 		f.write(post_head)
-
+		print(header,sz)
 		#print(header)
 		#actually reading the file
 		while True: 
@@ -110,22 +111,25 @@ def webcrawl(hostnm,port,files,globalcookie=None,globalqueue=None,linkqueue=None
 					post_head = b''
 			if looprest:
 				break
-			if chonkytime and sz==2:
+			if chonkytime and sz<=2:
 				break
 			pos = 0
-			if not sz: #non chonkytime and no size available
-				post_head_complete = not re.search(rb'</html>',post_head)
+			if sz==b'': #non chonkytime and no size available
+				post_head_complete = not re.search(rb'\r\n\r\n',post_head)
+				megachonk = b''
 				while post_head_complete:
+					chonk = b''
 					try:	
 						chonk = soc.recv(2048)
 					except:
 						soc = reconnect(soc,hostnm,port)
 						cookie = ''
 						looprest = True
-					#print(chonk)
-					if looprest or re.search(rb'</html>',chonk):
+					megachonk += chonk
+					#print(megachonk)
+					if looprest or not chonk.strip() or not megachonk or re.search(rb'\r\n\r\n',megachonk):
 						break
-					f.write(chonk)
+				f.write(megachonk)
 				if looprest:
 					break
 			while sz and pos<sz:
