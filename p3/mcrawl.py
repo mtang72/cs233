@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse, socket, multiprocessing as mp, re, os, tempfile, time, collections, ctypes
 
-def reconnect(sock,hostnm,port):
+def reconnect(sock,hostnm,port,globalcookie):
 	print("reconnectin")
 	sock.close()
 	sock = socket.socket()
@@ -10,28 +10,32 @@ def reconnect(sock,hostnm,port):
 		sock.connect((hostnm,port))
 	except:
 		raise Exception('FUCK')
+	if globalcookie:
+		with globalcookie.get_lock():
+			globalcookie.value = b''
 	return sock
 
-def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
+def webcrawl(hostnm,port,direc,globalcookie=None,linkqueue=None,lock=None):
 	soc = socket.socket()
 	#soc.settimeout(5)
 	try:
 		soc.connect((hostnm,port))
 	except:
 		raise Exception("FUCK")
-	links = ['/index.html'] if not linkqueue else linkqueue.get()
+	links = [linkqueue.pop() if linkqueue!=None else '/index.html']
 	backoff = 1
 	cookie = ''
 	sz = b''
+	files = {}
 	while links!=[]:
-		links = links if not linkqueue else linkqueue.get()
 		cookie = globalcookie.value.decode() if globalcookie else cookie
-		print(links)
+		print(linkqueue, links)
 		looprest = False #better way to reset loop
 
 		#file handling
 		if links[-1] in files:
 			links.pop()
+			links.append(linkqueue.pop())
 			continue
 		files[links[-1]] = tempfile.TemporaryFile()
 		f = files[links[-1]]
@@ -50,7 +54,7 @@ def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
 			try:
 				rec = soc.recv(512)
 			except:
-				soc = reconnect(soc,hostnm,port)
+				soc = reconnect(soc,hostnm,port,globalcookie)
 				cookie = ''
 				looprest = True
 				break
@@ -98,7 +102,7 @@ def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
 						try:
 							chonk = soc.recv(1)
 						except:
-							soc = reconnect(soc,hostnm,port)
+							soc = reconnect(soc,hostnm,port,globalcookie)
 							cookie = ''
 							looprest = True
 							break
@@ -122,7 +126,7 @@ def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
 					try:	
 						chonk = soc.recv(2048)
 					except:
-						soc = reconnect(soc,hostnm,port)
+						soc = reconnect(soc,hostnm,port,globalcookie)
 						cookie = ''
 						looprest = True
 					megachonk += chonk
@@ -172,7 +176,7 @@ def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
 			raise Exception('malformed command: {}'.format(cmd))
 		#are they shutting the door on me? ITS TIME TO FUCKING DIE
 		if re.search(r'Connection: close',header,re.IGNORECASE):
-			soc = reconnect(soc,hostnm,port)
+			soc = reconnect(soc,hostnm,port,globalcookie)
 			cookie = ''
 			#print(header)
 			looprest = True
@@ -183,10 +187,16 @@ def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
 			del files[links[-1]]
 			#time.sleep(backoff)
 			cookie = ''
+			if globalcookie:
+				with globalcookie.get_lock():
+					globalcookie.value = b''
 			looprest = True
+
 		if looprest:
+			if not links:
+				links.append(linkqueue.pop())
 			continue
-		backoff = 1 #successful transmission = reset backoff
+
 		#take link off queue and prepare f to read
 		links.pop()
 		f.seek(0)
@@ -212,8 +222,11 @@ def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
 		addl_links.extend(filter(del_crap,re.findall(r'(?<=src=[\'\"])[^\'\"]*(?=[\'\"])', txt,re.IGNORECASE))) #read for src
 		addl_links = map(lambda x:x[1:] if x[0:2] == './' else ('/'+x if x[0]!='/' else x), addl_links) #shave off './', or add '/'
 		addl_links = map(lambda x:dirnm+x if x[:3]!='/..' else x[3:], addl_links) #add directory, or not if it's '../'
-		if linkqueue:
-			linkqueue.put(addl_links)
+		if linkqueue!=None:
+			for link in addl_links:
+				linkqueue.append(link)
+			print(linkqueue)
+			links.append(linkqueue.pop())
 		else:
 			links.extend(addl_links)
 		f.seek(0)
@@ -221,25 +234,44 @@ def webcrawl(hostnm,port,files,globalcookie=None,filequeue=None,linkqueue=None):
 		#Take her home
 		#break
 		#What the fuck is up Richard
-	if filequeue:
-		filequeue.put(files)
+	if lock != None:
+		lock.acquire()
+	for file in files.keys():
+		filenm = file.split('/')[-1] if '/' in file else file
+		if filenm=='':
+			#continue
+			filenm = 'index.html'
+		#handle duplicate files
+		dup = 1
+		filenm1 = filenm
+		curdir = set(os.listdir(direc))
+		while filenm1 in curdir:
+			if '.' in filenm:
+				name_end = filenm.index('.')
+				filenm1 = filenm[:name_end]+'-'+str(dup)+filenm[name_end:]
+			else:
+				filenm1 += '-'+str(dup)
+			dup+=1
+		#write to an actual file
+		with open(direc+('/' if direc[-1]!='/' else '')+filenm1,'wb') as f:
+			f.write(files[file].read())
+		files[file].close()
+	if lock != None:
+		lock.release()
 	return 0
 
-def multithread(hostnm,port,files,processes,cookielock):
+def multithread(hostnm,port,direc,processes,cookielock):
 	globalcookie = mp.Array(ctypes.c_char,512) if cookielock else None
-	fq = mp.Queue()
-	lq = mp.Queue()
-	lq.put(['/index.html'])
-	ps = [mp.Process(target=webcrawl, args=(hostnm,port,{}),\
-		kwargs={'globalcookie':globalcookie,'linkqueue':lq,'filequeue':fq}) for _ in range(processes)]
-	for p in ps:
+	locc = mp.Lock()
+	lq = mp.Manager().list(['/index.html'])
+	ps = [mp.Process(target=webcrawl, args=(hostnm,port,direc),\
+		kwargs={'globalcookie':globalcookie,'linkqueue':lq,'lock':locc}) for i in range(processes)]
+	ps[0].start()
+	ps[0].join()
+	"""for p in ps:
 		p.start()
 	for p in ps:
-		p.join()
-	allfiles = fq.get()
-	for i in range(1,len(allfiles)):
-		allfiles[0].update(allfiles[i])
-	files = allfiles[0]
+		p.join()"""
 	return 0
 
 if __name__ == '__main__':
@@ -250,28 +282,7 @@ if __name__ == '__main__':
 	parser.add_argument('-f','--local-directory',dest='dir',required=True)
 	parser.add_argument('-cl','--cookie-lock',type=int,dest='cl',default=1)
 	args = vars(parser.parse_args())
-	files = {}
-	print(multithread(args['hostnm'],args['port'],files,args['nthreads'],args['cl'])\
-		if args['nthreads']>1 else webcrawl(args['hostnm'],args['port'],files))
-	for file in files.keys():
-		filenm = file.split('/')[-1] if '/' in file else file
-		if filenm=='':
-			#continue
-			filenm = 'index.html'
-		#handle duplicate files
-		dup = 1
-		filenm1 = filenm
-		curdir = set(os.listdir(args['dir']))
-		while filenm1 in curdir:
-			if '.' in filenm:
-				name_end = filenm.index('.')
-				filenm1 = filenm[:name_end]+'-'+str(dup)+filenm[name_end:]
-			else:
-				filenm1 += '-'+str(dup)
-			dup+=1
-		#write to an actual file
-		with open(args['dir']+('/' if args['dir'][-1]!='/' else '')+filenm1,'wb') as f:
-			f.write(files[file].read())
-		files[file].close()
+	print(multithread(args['hostnm'],args['port'],args['dir'],args['nthreads'],args['cl']) if args['nthreads']>1\
+		else webcrawl(args['hostnm'],args['port'],args['dir']))
 
 		
