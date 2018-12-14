@@ -3,6 +3,8 @@ by Michael Tang (CNETID: mtang72), 12/13/2018, CMSC 23300
 
 This is an implementation of p3 mcrawl in Python 3.7.
 
+Run the program by calling ./mcrawl.py [-n] [-h] [-p] [-f] [-cl], arguments in any order.
+
 ###### ARGUMENTS ######
 For the sake of argument naming, -h/--help has been disabled. The arguments are as follows:
 -n/--max-flows               to specify the number of processes to use.
